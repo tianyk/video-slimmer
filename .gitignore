@@ -1,77 +1,43 @@
-# Flutter/Dart generated files
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
 
-# iOS/Xcode related
-ios/Pods
-ios/Podfile.lock
-ios/Flutter/flutter_export_environment.sh
-ios/Runner.xcworkspace/xcshareddata/
-iOS/Runner.xcscheme
-ios/Runner.xcodeproj/xcshareddata/
+# Symbolication related
+app.*.symbols
 
-# Android related
-android/.gradle
-android/captures/
-android/local.properties
-android/app/src/main/res/values/strings.xml # May contain sensitive API keys
+# Obfuscation related
+app.*.map.json
 
-# Build outputs
-dist/
-build/
-.flutter-plugins
-.flutter-plugins-dependencies
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# IDE related
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# Flutter Repository - Not needed for apps
-bin/
-cache/
-sdk/
-
-# Flutter generated files
-.flutter-plugins-dependencies
-.packages
-
-# Temporary files
-*.tmp
-*.temp
-
-# Logs
-*.log
-
-# Android signing
-*.jks
-*.keystore
-
-# Coverage
-coverage/
-
-# pubspec
-pubspec.lock  # Only for libraries
-
-# exceptions to above rules
-!pubspec.lock
-
-# Platform specific
-web/.last_build_id
-.macos/
-.linux/
-.windows/
-.android/
-.ios/
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
