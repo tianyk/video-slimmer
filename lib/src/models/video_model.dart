@@ -78,17 +78,15 @@ class VideoModel {
   /// 获取分辨率级别（4K/1080p/720p等）+帧率描述
   String get resolutionAndFrameRate {
     String resolutionText;
-    if (width >= 3840) {
-      resolutionText = '4K';
+    if (width >= 2160) {
+      resolutionText = '4K'; // iPhone 4K (2160×3840)
     } else if (width >= 1920) {
-      resolutionText = '1080p';
+      resolutionText = '1080p'; // iPhone 1080p (1920×1080)
     } else if (width >= 1280) {
-      resolutionText = '720p';
+      resolutionText = '720p';  // iPhone 720p (1280×720)
     } else {
       resolutionText = '${width}p';
     }
-
-    print('width: $width frameRate: $frameRate resolutionText: $resolutionText');
 
     return '$resolutionText/${frameRate.round()}fps';
   }

@@ -52,6 +52,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       for (final video in videos) {
         final file = await video.file;
         if (file != null) {
+          print('video: ${video.title} ${video.id} ${file.path} ${video.width} ${video.height} ${video.duration} ${video.createDateTime}');
           realVideos.add(VideoModel(
             id: video.id,
             title: video.title ?? '未知视频',
