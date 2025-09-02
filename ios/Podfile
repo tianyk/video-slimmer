@@ -1,7 +1,5 @@
-# Uncomment this line to define a global platform for your project
 platform :ios, '12.0'
 
-# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
 project 'Runner', {
@@ -15,7 +13,6 @@ def flutter_root
   unless File.exist?(generated_xcode_build_settings_path)
     raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
   end
-
   File.foreach(generated_xcode_build_settings_path) do |line|
     matches = line.match(/FLUTTER_ROOT=(.*)/)
     return matches[1].strip if matches
@@ -24,7 +21,6 @@ def flutter_root
 end
 
 require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
-
 flutter_ios_podfile_setup
 
 target 'Runner' do
@@ -32,14 +28,42 @@ target 'Runner' do
   use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-  
+
   target 'RunnerTests' do
     inherit! :search_paths
   end
 end
 
+# 👇 关键配置：使用预处理宏来选择启用哪些权限
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    target.build_configurations.each do |config|
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
+        '$(inherited)',
+
+        ## ✅ 启用的权限
+        'PERMISSION_PHOTOS=1',
+        'PERMISSION_PHOTOS_ADD_ONLY=1',
+
+        ## ❌ 禁用掉不需要的权限（防止 App Store 审核要求你额外提供说明）
+        'PERMISSION_CAMERA=0',
+        'PERMISSION_MICROPHONE=0',
+        'PERMISSION_LOCATION=0',
+        'PERMISSION_LOCATION_WHENINUSE=0',
+        'PERMISSION_CONTACTS=0',
+        'PERMISSION_NOTIFICATIONS=0',
+        'PERMISSION_MEDIA_LIBRARY=0',
+        'PERMISSION_SENSORS=0',
+        'PERMISSION_BLUETOOTH=0',
+        'PERMISSION_APP_TRACKING_TRANSPARENCY=0',
+        'PERMISSION_CRITICAL_ALERTS=0',
+        'PERMISSION_ASSISTANT=0',
+        'PERMISSION_EVENTS=0',
+        'PERMISSION_EVENTS_FULL_ACCESS=0',
+        'PERMISSION_REMINDERS=0',
+        'PERMISSION_SPEECH_RECOGNIZER=0',
+      ]
+    end
   end
 end
