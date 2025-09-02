@@ -54,7 +54,7 @@ class ErrorScreen extends StatelessWidget {
                   errorMessage,
                   style: TextStyle(
                     fontSize: 16,
-                    color: brandGold.withOpacity(0.7),
+                    color: brandGold.withValues(alpha: 0.7),
                   ),
                   textAlign: TextAlign.center,
                 ),

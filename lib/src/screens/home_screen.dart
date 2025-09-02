@@ -44,7 +44,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final List<VideoModel> realVideos = [];
 
     for (final path in paths) {
-      print('🔍 获取相册数据: ${path.name}');
       final List<AssetEntity> videos = await path.getAssetListPaged(
         page: 0,
         size: 100, // 分页加载

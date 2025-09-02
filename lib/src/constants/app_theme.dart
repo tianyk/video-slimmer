@@ -29,7 +29,6 @@ class AppTheme {
       primary: prosperityGold,
       secondary: prosperityLightGold,
       surface: prosperityGray,
-      background: prosperityBlack,
       onPrimary: prosperityBlack,
       onSecondary: prosperityBlack,
       onSurface: prosperityLightGold,
@@ -74,8 +73,8 @@ class AppTheme {
     ),
     iconTheme: const IconThemeData(color: prosperityGold),
     checkboxTheme: CheckboxThemeData(
-      fillColor: MaterialStateProperty.all(prosperityGold),
-      checkColor: MaterialStateProperty.all(prosperityBlack),
+      fillColor: WidgetStateProperty.all(prosperityGold),
+      checkColor: WidgetStateProperty.all(prosperityBlack),
     ),
   );
 
@@ -90,7 +89,6 @@ class AppTheme {
       primary: prosperityGold,
       secondary: prosperityLightGold,
       surface: prosperityGray,
-      background: prosperityBlack,
       onPrimary: prosperityBlack,
       onSecondary: prosperityBlack,
       onSurface: prosperityLightGold,
@@ -180,7 +178,7 @@ class AppTheme {
     /// 半透明暗金色边框，视觉较为弱化，引导用户注意力
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: prosperityDarkGold.withOpacity(0.5)),
+      borderSide: BorderSide(color: prosperityDarkGold.withValues(alpha: 0.5)),
     ),
     /// 聚焦状态
     /// 明亮金色加粗边框，突出当前交互区域，增强视觉反馈
@@ -193,6 +191,6 @@ class AppTheme {
     labelStyle: const TextStyle(color: prosperityGold),
     /// 提示文字样式
     /// 半透明白色提示文字，提供输入指导，不抢占主要视觉焦点
-    hintStyle: TextStyle(color: prosperityLightGray.withOpacity(0.7)),
+    hintStyle: TextStyle(color: prosperityLightGray.withValues(alpha: 0.7)),
   );
 }
