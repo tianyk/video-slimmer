@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:remixicon/remixicon.dart';
-import 'package:permission_handler/permission_handler.dart';
+
 import '../constants/app_constants.dart';
 import '../constants/app_theme.dart';
+import '../services/permission_service.dart';
 
 class PermissionDeniedScreen extends StatelessWidget {
   const PermissionDeniedScreen({super.key});
@@ -68,6 +69,6 @@ class PermissionDeniedScreen extends StatelessWidget {
     );
 
     // 打开iOS设置
-    await openAppSettings();
+    await PermissionService.openSystemSettings();
   }
 }

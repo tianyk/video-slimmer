@@ -5,7 +5,7 @@ class ErrorScreen extends StatelessWidget {
   final String errorMessage;
   final Color brandGold;
   final Color brandGray;
-  
+
   const ErrorScreen({
     super.key,
     required this.errorMessage,
