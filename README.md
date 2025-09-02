@@ -16,7 +16,13 @@ flutter run --device-id "test的iPad"
 ```
 
 ## 技术栈
-- Flutter + Riverpod
+- Flutter 3.6.2 + Riverpod
 - flutter_ffmpeg 视频处理
 - photo_manager 相册访问
 - iOS 13+ 兼容性
+
+## 开发环境
+- Flutter 3.27.4 (稳定版)
+- Dart 3.6.0
+- iOS 13+
+- Xcode 15+
