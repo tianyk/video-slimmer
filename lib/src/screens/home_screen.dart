@@ -1,6 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
-import 'package:remixicon/remixicon.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:photo_manager/photo_manager.dart';
+import 'package:remixicon/remixicon.dart';
+
 import '../constants/app_constants.dart';
 import '../constants/app_theme.dart';
 import '../models/video_model.dart';
@@ -25,47 +29,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _loadVideos() async {
+    final permission = await PhotoManager.requestPermissionExtend();
+    if (!permission.isAuth) {
+      return; // 处理权限拒绝
+    }
+
+    // 2. 获取视频资源
+    final List<AssetPathEntity> paths = await PhotoManager.getAssetPathList(
+      onlyAll: true, // 只获取根目录（Recents相册）
+      type: RequestType.video,
+    );
+
+    // 3. 将相册数据转换为 VideoModel
+    final List<VideoModel> realVideos = [];
+
+    for (final path in paths) {
+      print('🔍 获取相册数据: ${path.name}');
+      final List<AssetEntity> videos = await path.getAssetListPaged(
+        page: 0,
+        size: 100, // 分页加载
+      );
+
+      for (final video in videos) {
+        final file = await video.file;
+        if (file != null) {
+          realVideos.add(VideoModel(
+            id: video.id,
+            title: video.title ?? '未知视频',
+            path: file.path,
+            duration: video.duration.toDouble(),
+            width: video.width,
+            height: video.height,
+            sizeBytes: await file.length(),
+            frameRate: 30, // 相册API无法直接获取帧率
+            creationDate: video.createDateTime,
+            assetEntity: video, // 保存AssetEntity引用用于获取缩略图
+            isSelected: false,
+          ));
+        }
+      }
+    }
+
     // 模拟加载视频数据，实际项目中会从相册加载
     setState(() {
       _videos.clear();
-      _videos.addAll([
-        VideoModel(
-          id: '1',
-          title: 'travel_shanghai.mp4',
-          path: '/path/to/video1.mp4',
-          duration: 180,
-          width: 1080,
-          height: 1920,
-          sizeBytes: 1572864000, // ~1.5GB
-          frameRate: 30,
-          creationDate: DateTime.now().subtract(const Duration(days: 1)),
-          thumbnailPath: '',
-          isSelected: false,
-        ),
-        VideoModel(
-          id: '2',
-          title: 'family_party.mp4',
-          path: '/path/to/video2.mp4',
-          duration: 600,
-          width: 1920,
-          height: 1080,
-          sizeBytes: 5368709120, // ~5GB
-          frameRate: 60,
-          creationDate: DateTime.now().subtract(const Duration(days: 2)),
-          thumbnailPath: '',
-          isSelected: false,
-        ),
-      ]);
+      _videos.addAll(realVideos);
     });
   }
 
-  int get selectedVideosCount =>
-      _videos.where((video) => video.isSelected).length;
+  int get selectedVideosCount => _videos.where((video) => video.isSelected).length;
 
   double get totalSelectedSize {
-    return _videos
-        .where((video) => video.isSelected)
-        .fold(0, (sum, video) => sum + video.sizeBytes);
+    return _videos.where((video) => video.isSelected).fold(0, (sum, video) => sum + video.sizeBytes);
   }
 
   void _toggleVideoSelection(int index, bool selected) {
@@ -92,9 +107,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: _loadVideos,
-        child: _videos.isEmpty
-            ? _buildEmptyState()
-            : _buildVideoList(),
+        child: _videos.isEmpty ? _buildEmptyState() : _buildVideoList(),
       ),
       floatingActionButton: selectedVideosCount > 0
           ? SizedBox(
@@ -165,9 +178,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ListTile(
                 title: const Text('文件大小'),
                 trailing: Icon(
-                  _sortBy == 'size'
-                      ? (_sortDescending ? Icons.arrow_downward : Icons.arrow_upward)
-                      : null,
+                  _sortBy == 'size' ? (_sortDescending ? Icons.arrow_downward : Icons.arrow_upward) : null,
                 ),
                 onTap: () {
                   setState(() {
@@ -184,9 +195,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ListTile(
                 title: const Text('拍摄时间'),
                 trailing: Icon(
-                  _sortBy == 'date'
-                      ? (_sortDescending ? Icons.arrow_downward : Icons.arrow_upward)
-                      : null,
+                  _sortBy == 'date' ? (_sortDescending ? Icons.arrow_downward : Icons.arrow_upward) : null,
                 ),
                 onTap: () {
                   setState(() {
@@ -298,23 +307,43 @@ class _VideoItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: video.isSelected ? 8 : 2, 
-      color: video.isSelected ? AppTheme.prosperityDarkGold.withOpacity(0.2) : AppTheme.prosperityGray,
+      elevation: video.isSelected ? 8 : 2,
+      color: video.isSelected ? AppTheme.prosperityDarkGold.withValues(alpha: 0.2) : AppTheme.prosperityGray,
       child: InkWell(
         onTap: () => onSelectionChanged(!video.isSelected),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              // 缩略图占位符
-              Container(
+              // 缩略图懒加载
+              SizedBox(
                 width: 80,
                 height: 60,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
+                  child: video.assetEntity != null
+                      ? FutureBuilder<Uint8List?>(
+                          future: video.assetEntity!.thumbnailDataWithSize(const ThumbnailSize(160, 120)),
+                          builder: (context, snapshot) {
+                            if (snapshot.hasData && snapshot.data != null) {
+                              return Image.memory(
+                                snapshot.data!,
+                                fit: BoxFit.cover,
+                                width: 80,
+                                height: 60,
+                              );
+                            }
+                            return Container(
+                              color: Colors.grey[300],
+                              child: Icon(Remix.video_line, color: Colors.grey[600]),
+                            );
+                          },
+                        )
+                      : Container(
+                          color: Colors.grey[300],
+                          child: Icon(Remix.video_line, color: Colors.grey[600]),
+                        ),
                 ),
-                child: Icon(Remix.video_line, color: Colors.grey[600]),
               ),
               const SizedBox(width: 12),
               Expanded(

@@ -5,7 +5,7 @@ PODS:
     - FlutterMacOS
   - permission_handler_apple (9.3.0):
     - Flutter
-  - photo_manager (2.0.0):
+  - photo_manager (3.7.1):
     - Flutter
     - FlutterMacOS
   - shared_preferences_foundation (0.0.1):
@@ -41,10 +41,10 @@ SPEC CHECKSUMS:
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
   path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
   permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
-  photo_manager: fb3d7277cd57e7c5e169a3634aa0fe1720fb003a
+  photo_manager: 1d80ae07a89a67dfbcae95953a1e5a24af7c3e62
   shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
   video_player_avfoundation: 2cef49524dd1f16c5300b9cd6efd9611ce03639b
 
-PODFILE CHECKSUM: 5b197461bd55b0d674c0cd91fcd124c4f6c96aa5
+PODFILE CHECKSUM: 527f3c49044595ab128a58bead023fc2678ecb16
 
 COCOAPODS: 1.16.2
