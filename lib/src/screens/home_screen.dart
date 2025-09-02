@@ -52,7 +52,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       for (final video in videos) {
         final file = await video.file;
         if (file != null) {
-          print('video: ${video.title} ${video.id} ${file.path} ${video.width} ${video.height} ${video.duration} ${video.createDateTime}');
           realVideos.add(VideoModel(
             id: video.id,
             title: video.title ?? '未知视频',
@@ -156,6 +155,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       itemBuilder: (context, index) {
         final video = _videos[index];
         return _VideoItem(
+          key: ValueKey(video.id),
           video: video,
           onSelectionChanged: (selected) => _toggleVideoSelection(index, selected),
         );
@@ -299,6 +299,7 @@ class _VideoItem extends StatelessWidget {
   final ValueChanged<bool> onSelectionChanged;
 
   const _VideoItem({
+    required Key key,
     required this.video,
     required this.onSelectionChanged,
   });
