@@ -83,6 +83,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _toggleVideoSelection(int index, bool selected) {
+    // TODO: 导致整个列表重绘
     setState(() {
       _videos[index] = _videos[index].copyWith(isSelected: selected);
     });
