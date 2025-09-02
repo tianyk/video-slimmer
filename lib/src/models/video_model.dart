@@ -88,6 +88,8 @@ class VideoModel {
       resolutionText = '${width}p';
     }
 
+    print('width: $width frameRate: $frameRate resolutionText: $resolutionText');
+
     return '$resolutionText/${frameRate.round()}fps';
   }
 
