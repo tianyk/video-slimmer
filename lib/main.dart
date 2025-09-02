@@ -4,6 +4,8 @@ import 'package:video_slimmer/src/services/permission_service.dart';
 import 'src/constants/app_constants.dart';
 import 'src/constants/app_theme.dart';
 import 'src/screens/home_screen.dart';
+import 'src/widgets/permission_denied_screen.dart';
+import 'src/widgets/error_screen.dart';
 
 void main() {
   runApp(const ProviderScope(child: VideoSlimmerApp()));
@@ -30,15 +32,32 @@ class HomeScreenWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<bool>(
-      future: PermissionService.requestStoragePermission(), // 检查并请求权限
+      future: PermissionService.requestStoragePermission(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+          return Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
           );
         }
 
-        return const HomeScreen();
+        if (snapshot.hasError) {
+          return ErrorScreen(
+            errorMessage: snapshot.error?.toString() ?? '未知错误',
+            brandGold: AppTheme.prosperityGold,
+            brandGray: AppTheme.prosperityGray,
+          );
+        }
+
+        final hasPermission = snapshot.data ?? false;
+        if (hasPermission) {
+          return const HomeScreen();
+        } else {
+          return const PermissionDeniedScreen();
+        }
       },
     );
   }

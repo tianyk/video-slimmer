@@ -48,11 +48,6 @@ class PermissionDeniedScreen extends StatelessWidget {
                 const SizedBox(height: 32),
                 ElevatedButton(
                   onPressed: () => _requestPermission(context),
-                  child: const Text('授权访问相册'),
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () => openAppSettings(),
                   child: const Text('前往设置'),
                 ),
               ],
@@ -67,4 +62,12 @@ class PermissionDeniedScreen extends StatelessWidget {
     // 弹出权限请求指引
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('请前往iOS设置 > 隐私与安全性 > 照片 > 视频瘦身器 > 选择
+        content: Text('请前往iOS设置 > 隐私与安全性 > 照片 > 视频瘦身器 > 选择"所有照片"'),
+        duration: Duration(seconds: 3),
+      ),
+    );
+
+    // 打开iOS设置
+    await openAppSettings();
+  }
+}
