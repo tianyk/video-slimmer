@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_slimmer/src/services/permission_service.dart';
 import 'src/constants/app_constants.dart';
 import 'src/constants/app_theme.dart';
@@ -8,7 +7,7 @@ import 'src/widgets/permission_denied_screen.dart';
 import 'src/widgets/error_screen.dart';
 
 void main() {
-  runApp(const ProviderScope(child: VideoSlimmerApp()));
+  runApp(const VideoSlimmerApp());
 }
 
 class VideoSlimmerApp extends StatelessWidget {
