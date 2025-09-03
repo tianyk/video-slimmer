@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:flutter/services.dart';
 import 'package:photo_manager/photo_manager.dart';
 import '../models/video_model.dart';
 
@@ -83,6 +84,9 @@ class VideoDataError extends VideoDataState {
 class VideoDataCubit extends Cubit<VideoDataState> {
   VideoDataCubit() : super(const VideoDataInitial());
 
+  // MethodChannel for iOS native API
+  static const _platform = MethodChannel('video_metadata');
+
   /// 加载所有视频
   Future<void> loadVideos() async {
     try {
@@ -117,6 +121,9 @@ class VideoDataCubit extends Cubit<VideoDataState> {
             final fileSize = await file.length();
             totalSize += fileSize;
 
+            // 获取真实帧率
+            final frameRate = await _getVideoFrameRate(file.path);
+
             videos.add(VideoModel(
               id: videoEntity.id,
               title: videoEntity.title ?? '未知视频',
@@ -125,7 +132,7 @@ class VideoDataCubit extends Cubit<VideoDataState> {
               width: videoEntity.width,
               height: videoEntity.height,
               sizeBytes: fileSize,
-              frameRate: 30, // 相册API无法直接获取帧率，使用默认值
+              frameRate: frameRate,
               creationDate: videoEntity.createDateTime,
               assetEntity: videoEntity,
             ));
@@ -184,5 +191,25 @@ class VideoDataCubit extends Cubit<VideoDataState> {
   /// 清除数据
   void clearData() {
     emit(const VideoDataInitial());
+  }
+
+  /// 通过 iOS 原生 API 获取视频帧率
+  Future<double> _getVideoFrameRate(String filePath) async {
+    try {
+      final result = await _platform.invokeMethod('getVideoFrameRate', {
+        'filePath': filePath,
+      });
+
+      // 确保返回值是有效的帧率
+      if (result != null && result is num && result > 0) {
+        return result.toDouble();
+      }
+    } catch (e) {
+      // print('获取帧率失败: $e');
+      // 如果原生 API 调用失败，使用估算方法作为备用
+    }
+
+    // 备用方案：使用估算帧率
+    return 30.0;
   }
 }
