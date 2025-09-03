@@ -121,8 +121,8 @@ class VideoDataCubit extends Cubit<VideoDataState> {
             final fileSize = await file.length();
             totalSize += fileSize;
 
-            // 获取真实帧率
-            final frameRate = await _getVideoFrameRate(file.path);
+            // 获取视频元数据（包括帧率和 HDR 信息）
+            final metadata = await _getVideoMetadata(file.path);
 
             videos.add(VideoModel(
               id: videoEntity.id,
@@ -132,8 +132,12 @@ class VideoDataCubit extends Cubit<VideoDataState> {
               width: videoEntity.width,
               height: videoEntity.height,
               sizeBytes: fileSize,
-              frameRate: frameRate,
+              frameRate: metadata['frameRate'] ?? 30.0,
               creationDate: videoEntity.createDateTime,
+              isHDR: metadata['isHDR'] ?? false,
+              isDolbyVision: metadata['isDolbyVision'] ?? false,
+              hdrType: metadata['hdrType'] ?? 'SDR',
+              colorSpace: metadata['colorSpace'] ?? 'Unknown',
               assetEntity: videoEntity,
             ));
           }
@@ -193,23 +197,27 @@ class VideoDataCubit extends Cubit<VideoDataState> {
     emit(const VideoDataInitial());
   }
 
-  /// 通过 iOS 原生 API 获取视频帧率
-  Future<double> _getVideoFrameRate(String filePath) async {
+  /// 通过 iOS 原生 API 获取视频完整元数据
+  Future<Map<String, dynamic>> _getVideoMetadata(String filePath) async {
     try {
-      final result = await _platform.invokeMethod('getVideoFrameRate', {
+      final result = await _platform.invokeMethod('getVideoMetadata', {
         'filePath': filePath,
       });
 
-      // 确保返回值是有效的帧率
-      if (result != null && result is num && result > 0) {
-        return result.toDouble();
+      if (result != null && result is Map) {
+        return Map<String, dynamic>.from(result);
       }
     } catch (e) {
-      // print('获取帧率失败: $e');
-      // 如果原生 API 调用失败，使用估算方法作为备用
+      // print('获取视频元数据失败: $e');
     }
 
-    // 备用方案：使用估算帧率
-    return 30.0;
+    // 备用方案：返回默认值
+    return {
+      'frameRate': 30.0,
+      'isHDR': false,
+      'isDolbyVision': false,
+      'hdrType': 'SDR',
+      'colorSpace': 'Unknown',
+    };
   }
 }

@@ -375,16 +375,12 @@ class _VideoItem extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: AppTheme.prosperityGold.withValues(alpha: 0.2),
+                                color: video.isHDR ? AppTheme.prosperityGold.withValues(alpha: 0.3) : AppTheme.prosperityGold.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                video.resolutionAndFrameRate,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppTheme.prosperityDarkGold,
-                                ),
+                                video.videoSpecification,
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: AppTheme.prosperityGold),
                               ),
                             ),
                           ],
