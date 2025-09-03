@@ -182,9 +182,9 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             // 标题
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: const Text(
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
                 '排序方式',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
@@ -195,28 +195,28 @@ class _HomeScreenState extends State<HomeScreen> {
               sortKey: 'size',
               currentSort: currentState.sortBy,
               isDescending: currentState.sortDescending,
-              onTap: (sortKey) => _handleSortSelection(filterCubit, sortKey, currentState),
+              onTap: (sortKey) => _handleSortSelection(modalContext, filterCubit, sortKey, currentState),
             ),
             _SortOption(
               title: '拍摄时间',
               sortKey: 'date',
               currentSort: currentState.sortBy,
               isDescending: currentState.sortDescending,
-              onTap: (sortKey) => _handleSortSelection(filterCubit, sortKey, currentState),
+              onTap: (sortKey) => _handleSortSelection(modalContext, filterCubit, sortKey, currentState),
             ),
             _SortOption(
               title: '视频时长',
               sortKey: 'duration',
               currentSort: currentState.sortBy,
               isDescending: currentState.sortDescending,
-              onTap: (sortKey) => _handleSortSelection(filterCubit, sortKey, currentState),
+              onTap: (sortKey) => _handleSortSelection(modalContext, filterCubit, sortKey, currentState),
             ),
             _SortOption(
               title: '文件名称',
               sortKey: 'title',
               currentSort: currentState.sortBy,
               isDescending: currentState.sortDescending,
-              onTap: (sortKey) => _handleSortSelection(filterCubit, sortKey, currentState),
+              onTap: (sortKey) => _handleSortSelection(modalContext, filterCubit, sortKey, currentState),
             ),
             const SizedBox(height: 16),
           ],
@@ -231,19 +231,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
     showModalBottomSheet(
       context: context,
-      builder: (context) {
+      builder: (modalContext) {
         return Column(
           children: [
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('按分辨率和类型筛选', style: TextStyle(fontSize: 18)),
+              child: Text(
+                '按分辨率和类型筛选',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
             ),
             ListTile(
               title: const Text('全部视频'),
               trailing: currentState.selectedFilter == null ? const Icon(Icons.check) : null,
               onTap: () {
                 filterCubit.clearFilter();
-                Navigator.pop(context);
+                Navigator.pop(modalContext);
               },
             ),
             ListTile(
@@ -251,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> {
               trailing: currentState.selectedFilter == '4K60' ? const Icon(Icons.check) : null,
               onTap: () {
                 filterCubit.setFilter('4K60');
-                Navigator.pop(context);
+                Navigator.pop(modalContext);
               },
             ),
             ListTile(
@@ -259,7 +262,7 @@ class _HomeScreenState extends State<HomeScreen> {
               trailing: currentState.selectedFilter == '4K30' ? const Icon(Icons.check) : null,
               onTap: () {
                 filterCubit.setFilter('4K30');
-                Navigator.pop(context);
+                Navigator.pop(modalContext);
               },
             ),
             ListTile(
@@ -267,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
               trailing: currentState.selectedFilter == '1080p30' ? const Icon(Icons.check) : null,
               onTap: () {
                 filterCubit.setFilter('1080p30');
-                Navigator.pop(context);
+                Navigator.pop(modalContext);
               },
             ),
             ListTile(
@@ -275,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
               trailing: currentState.selectedFilter == 'large_files' ? const Icon(Icons.check) : null,
               onTap: () {
                 filterCubit.setFilter('large_files');
-                Navigator.pop(context);
+                Navigator.pop(modalContext);
               },
             ),
             ListTile(
@@ -283,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
               trailing: currentState.selectedFilter == 'long_videos' ? const Icon(Icons.check) : null,
               onTap: () {
                 filterCubit.setFilter('long_videos');
-                Navigator.pop(context);
+                Navigator.pop(modalContext);
               },
             ),
           ],
@@ -293,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// 处理排序选择逻辑
-  void _handleSortSelection(VideoFilterCubit filterCubit, String sortKey, VideoFilterState currentState) {
+  void _handleSortSelection(BuildContext context, VideoFilterCubit filterCubit, String sortKey, VideoFilterState currentState) {
     if (currentState.sortBy == sortKey) {
       // 🔄 如果已经是当前排序字段，切换升序/降序
       filterCubit.toggleSortDirection();
