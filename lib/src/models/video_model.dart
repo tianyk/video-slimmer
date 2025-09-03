@@ -32,10 +32,7 @@ class VideoModel {
   /// 相册系统实体引用 - 用于获取缩略图等原生功能
   final AssetEntity? assetEntity;
 
-  /// 选择状态（在列表中是否被选中）
-  bool isSelected;
-
-  VideoModel({
+  const VideoModel({
     required this.id,
     required this.title,
     required this.path,
@@ -46,7 +43,6 @@ class VideoModel {
     required this.frameRate,
     required this.creationDate,
     this.assetEntity,
-    this.isSelected = false,
   });
 
   /// 分辨率字符串，格式：宽度×高度（如1920×1080）
@@ -83,7 +79,7 @@ class VideoModel {
     } else if (width >= 1920) {
       resolutionText = '1080p'; // iPhone 1080p (1920×1080)
     } else if (width >= 1280) {
-      resolutionText = '720p';  // iPhone 720p (1280×720)
+      resolutionText = '720p'; // iPhone 720p (1280×720)
     } else {
       resolutionText = '${width}p';
     }
@@ -102,9 +98,7 @@ class VideoModel {
     int? sizeBytes,
     double? frameRate,
     DateTime? creationDate,
-    String? thumbnailPath,
     AssetEntity? assetEntity,
-    bool? isSelected,
   }) {
     return VideoModel(
       id: id ?? this.id,
@@ -117,7 +111,6 @@ class VideoModel {
       frameRate: frameRate ?? this.frameRate,
       creationDate: creationDate ?? this.creationDate,
       assetEntity: assetEntity ?? this.assetEntity,
-      isSelected: isSelected ?? this.isSelected,
     );
   }
 }
