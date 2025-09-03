@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -7,8 +8,8 @@ import 'package:remixicon/remixicon.dart';
 import '../constants/app_constants.dart';
 import '../constants/app_theme.dart';
 import '../cubits/video_data_cubit.dart';
-import '../cubits/video_selection_cubit.dart';
 import '../cubits/video_filter_cubit.dart';
+import '../cubits/video_selection_cubit.dart';
 import '../models/video_model.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -52,22 +53,10 @@ class _HomeScreenState extends State<HomeScreen> {
         appBar: AppBar(
           title: const Text(AppConstants.appName),
           actions: [
-            // 清除选择 / 排序按钮
-            BlocBuilder<VideoSelectionCubit, VideoSelectionState>(
-              builder: (context, selectionState) {
-                if (selectionState.selectedCount > 0) {
-                  return IconButton(
-                    onPressed: () => _videoSelectionCubit.clearSelection(),
-                    icon: const Icon(Icons.clear_all),
-                    tooltip: '取消选择',
-                  );
-                } else {
-                  return IconButton(
-                    icon: const Icon(Icons.sort),
-                    onPressed: () => _showSortDialog(context),
-                  );
-                }
-              },
+            // 排序按钮
+            IconButton(
+              icon: const Icon(Icons.sort),
+              onPressed: () => _showSortDialog(context),
             ),
             // 筛选按钮
             IconButton(
@@ -198,8 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ListTile(
                 title: const Text('文件大小'),
                 trailing: Icon(
-                  currentState.sortBy == 'size' ? 
-                    (currentState.sortDescending ? Icons.arrow_downward : Icons.arrow_upward) : null,
+                  currentState.sortBy == 'size' ? (currentState.sortDescending ? Icons.arrow_downward : Icons.arrow_upward) : null,
                 ),
                 onTap: () {
                   filterCubit.setSortBy('size', descending: true);
@@ -209,8 +197,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ListTile(
                 title: const Text('拍摄时间'),
                 trailing: Icon(
-                  currentState.sortBy == 'date' ? 
-                    (currentState.sortDescending ? Icons.arrow_downward : Icons.arrow_upward) : null,
+                  currentState.sortBy == 'date' ? (currentState.sortDescending ? Icons.arrow_downward : Icons.arrow_upward) : null,
                 ),
                 onTap: () {
                   filterCubit.setSortBy('date', descending: true);
@@ -220,8 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ListTile(
                 title: const Text('视频时长'),
                 trailing: Icon(
-                  currentState.sortBy == 'duration' ? 
-                    (currentState.sortDescending ? Icons.arrow_downward : Icons.arrow_upward) : null,
+                  currentState.sortBy == 'duration' ? (currentState.sortDescending ? Icons.arrow_downward : Icons.arrow_upward) : null,
                 ),
                 onTap: () {
                   filterCubit.setSortBy('duration', descending: true);
@@ -231,8 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ListTile(
                 title: const Text('文件名称'),
                 trailing: Icon(
-                  currentState.sortBy == 'title' ? 
-                    (currentState.sortDescending ? Icons.arrow_downward : Icons.arrow_upward) : null,
+                  currentState.sortBy == 'title' ? (currentState.sortDescending ? Icons.arrow_downward : Icons.arrow_upward) : null,
                 ),
                 onTap: () {
                   filterCubit.setSortBy('title', descending: true);
@@ -343,23 +328,19 @@ class _VideoItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<VideoSelectionCubit, VideoSelectionState>(
       // 只有这个视频的选择状态变化时才重建
-      buildWhen: (previous, current) => 
-        previous.isSelected(video.id) != current.isSelected(video.id),
+      buildWhen: (previous, current) => previous.isSelected(video.id) != current.isSelected(video.id),
       builder: (context, selectionState) {
         final isSelected = selectionState.isSelected(video.id);
-        
+
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           elevation: isSelected ? 8 : 2,
-          color: isSelected 
-            ? AppTheme.prosperityDarkGold.withValues(alpha: 0.2) 
-            : AppTheme.prosperityGray,
+          color: isSelected ? AppTheme.prosperityDarkGold.withValues(alpha: 0.2) : AppTheme.prosperityGray,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
           child: InkWell(
-            onTap: () => context.read<VideoSelectionCubit>()
-              .toggleSelection(video.id, video.sizeBytes.toDouble()),
+            onTap: () => context.read<VideoSelectionCubit>().toggleSelection(video.id, video.sizeBytes.toDouble()),
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -396,8 +377,7 @@ class _VideoItem extends StatelessWidget {
                   // 选择框
                   Checkbox(
                     value: isSelected,
-                    onChanged: (value) => context.read<VideoSelectionCubit>()
-                      .toggleSelection(video.id, video.sizeBytes.toDouble()),
+                    onChanged: (value) => context.read<VideoSelectionCubit>().toggleSelection(video.id, video.sizeBytes.toDouble()),
                     activeColor: AppTheme.prosperityGold,
                     checkColor: Colors.black,
                   ),
