@@ -9,29 +9,26 @@ class VideoSelectionState extends Equatable {
   /// 已选择视频的总大小（字节）
   final double totalSelectedSize;
 
-  /// 已选择视频数量
-  final int selectedCount;
-
   const VideoSelectionState({
     this.selectedVideoIds = const {},
     this.totalSelectedSize = 0.0,
-    this.selectedCount = 0,
   });
 
   VideoSelectionState copyWith({
     Set<String>? selectedVideoIds,
     double? totalSelectedSize,
-    int? selectedCount,
   }) {
     return VideoSelectionState(
       selectedVideoIds: selectedVideoIds ?? this.selectedVideoIds,
       totalSelectedSize: totalSelectedSize ?? this.totalSelectedSize,
-      selectedCount: selectedCount ?? this.selectedCount,
     );
   }
 
   /// 检查指定视频是否被选中
   bool isSelected(String videoId) => selectedVideoIds.contains(videoId);
+
+  /// 已选择视频数量
+  int get selectedCount => selectedVideoIds.length;
 
   /// 格式化总大小显示
   String get formattedTotalSize {
@@ -42,7 +39,7 @@ class VideoSelectionState extends Equatable {
   }
 
   @override
-  List<Object> get props => [selectedVideoIds, totalSelectedSize, selectedCount];
+  List<Object> get props => [selectedVideoIds, totalSelectedSize];
 }
 
 /// 视频选择状态管理
@@ -67,7 +64,6 @@ class VideoSelectionCubit extends Cubit<VideoSelectionState> {
     emit(VideoSelectionState(
       selectedVideoIds: newSelectedIds,
       totalSelectedSize: newTotalSize,
-      selectedCount: newSelectedIds.length,
     ));
   }
 
@@ -83,7 +79,6 @@ class VideoSelectionCubit extends Cubit<VideoSelectionState> {
     emit(VideoSelectionState(
       selectedVideoIds: Set<String>.from(videoSizeMap.keys),
       totalSelectedSize: totalSize,
-      selectedCount: videoSizeMap.length,
     ));
   }
 
@@ -96,7 +91,6 @@ class VideoSelectionCubit extends Cubit<VideoSelectionState> {
     emit(VideoSelectionState(
       selectedVideoIds: newSelected,
       totalSelectedSize: newTotalSize,
-      selectedCount: newSelected.length,
     ));
   }
 }
