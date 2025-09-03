@@ -360,22 +360,67 @@ class _VideoItem extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          video.title,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        // 主要信息行：文件大小（突出显示）
+                        Row(
+                          children: [
+                            Text(
+                              video.fileSize,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.prosperityLightGold,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppTheme.prosperityGold.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                video.resolutionAndFrameRate,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppTheme.prosperityDarkGold,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          '${video.resolutionAndFrameRate} | ${video.formattedDuration} | ${video.fileSize}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
+                        // 次要信息行：时长和拍摄日期
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              size: 12,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              video.formattedDuration,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Icon(
+                              Icons.calendar_today,
+                              size: 12,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _formatDate(video.creationDate),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -428,6 +473,27 @@ class _VideoItem extends StatelessWidget {
               ),
       ),
     );
+  }
+
+  /// 格式化日期显示
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final videoDate = DateTime(date.year, date.month, date.day);
+
+    if (videoDate == today) {
+      return '今天';
+    } else if (videoDate == yesterday) {
+      return '昨天';
+    } else if (now.difference(date).inDays < 7) {
+      const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+      return weekdays[date.weekday - 1];
+    } else if (date.year == now.year) {
+      return '${date.month}月${date.day}日';
+    } else {
+      return '${date.year}年${date.month}月';
+    }
   }
 }
 
