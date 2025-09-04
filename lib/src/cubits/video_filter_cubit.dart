@@ -49,33 +49,33 @@ class VideoFilterState extends Equatable {
     // 应用标签筛选
     if (selectedTags.isNotEmpty) {
       result = result.where((video) {
-        // 检查每个选中的标签
+        // 检查是否满足任一选中的标签（OR逻辑）
         for (String tag in selectedTags) {
           switch (tag) {
             case '1080p':
-              if (!((video.width >= 1920 && video.width < 2160) || (video.height >= 1920 && video.height < 2160))) return false;
+              if ((video.width >= 1920 && video.width < 2160) || (video.height >= 1920 && video.height < 2160)) return true;
               break;
             case '4k':
-              if (!(video.width >= 2160 || video.height >= 2160)) return false;
+              if (video.width >= 2160 || video.height >= 2160) return true;
               break;
             case '24fps':
-              if (!(video.frameRate >= 23 && video.frameRate <= 25)) return false;
+              if (video.frameRate >= 23 && video.frameRate <= 25) return true;
               break;
             case '30fps':
-              if (!(video.frameRate >= 28 && video.frameRate <= 32)) return false;
+              if (video.frameRate >= 28 && video.frameRate <= 32) return true;
               break;
             case '60fps':
-              if (!(video.frameRate >= 58 && video.frameRate <= 62)) return false;
+              if (video.frameRate >= 58 && video.frameRate <= 62) return true;
               break;
             case 'hdr':
-              if (!video.isHDR) return false;
+              if (video.isHDR) return true;
               break;
             case 'dolby_vision':
-              if (!video.isDolbyVision) return false;
+              if (video.isDolbyVision) return true;
               break;
           }
         }
-        return true; // 所有标签条件都满足
+        return false; // 没有满足任何标签条件
       }).toList();
     }
 
