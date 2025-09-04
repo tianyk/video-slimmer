@@ -11,6 +11,7 @@ import '../cubits/video_data_cubit.dart';
 import '../cubits/video_filter_cubit.dart';
 import '../cubits/video_selection_cubit.dart';
 import '../models/video_model.dart';
+import 'compression_config_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -66,49 +67,57 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          body: BlocBuilder<VideoDataCubit, VideoDataState>(
-            builder: (context, dataState) {
-              if (dataState is VideoDataInitial) {
-                return const SizedBox.shrink();
-              } else if (dataState is VideoDataLoading) {
-                return const Center(child: CircularProgressIndicator());
-              } else if (dataState is VideoDataLoaded) {
-                return BlocBuilder<VideoFilterCubit, VideoFilterState>(
-                  builder: (context, filterState) {
-                    final filteredVideos = filterState.applyFilterAndSort(dataState.videos);
-                    return _buildVideoList(filteredVideos);
+          body: Column(
+            children: [
+              // 主要内容区域
+              Expanded(
+                child: BlocBuilder<VideoDataCubit, VideoDataState>(
+                  builder: (context, dataState) {
+                    if (dataState is VideoDataInitial) {
+                      return const SizedBox.shrink();
+                    } else if (dataState is VideoDataLoading) {
+                      return const Center(child: CircularProgressIndicator());
+                    } else if (dataState is VideoDataLoaded) {
+                      return BlocBuilder<VideoFilterCubit, VideoFilterState>(
+                        builder: (context, filterState) {
+                          final filteredVideos = filterState.applyFilterAndSort(dataState.videos);
+                          return _buildVideoList(filteredVideos);
+                        },
+                      );
+                    } else if (dataState is VideoDataError) {
+                      return _buildErrorState(dataState.message);
+                    } else {
+                      return const Center(child: Text('未知状态'));
+                    }
                   },
-                );
-              } else if (dataState is VideoDataError) {
-                return _buildErrorState(dataState.message);
-              } else {
-                return const Center(child: Text('未知状态'));
-              }
-            },
-          ),
-          // 浮动按钮只监听选择状态
-          floatingActionButton: BlocBuilder<VideoSelectionCubit, VideoSelectionState>(
-            builder: (context, selectionState) {
-              if (selectionState.selectedCount > 0) {
-                return SizedBox(
-                  width: double.infinity,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 20),
-                    child: FloatingActionButton.extended(
-                      onPressed: _onNextPressed,
-                      label: Text(
-                        '下一步 (${selectionState.selectedCount})',
-                        style: const TextStyle(fontSize: 16),
+                ),
+              ),
+
+              // 底部按钮区域
+              BlocBuilder<VideoSelectionCubit, VideoSelectionState>(
+                builder: (context, selectionState) {
+                  if (selectionState.selectedCount > 0) {
+                    return Container(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 56, // 统一高度
+                        child: ElevatedButton(
+                          onPressed: _onNextPressed,
+                          child: Text(
+                            '下一步 (${selectionState.selectedCount})',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                );
-              } else {
-                return const SizedBox.shrink();
-              }
-            },
+                    );
+                  } else {
+                    return const SizedBox.shrink();
+                  }
+                },
+              ),
+            ],
           ),
-          floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
         ),
       ),
     );
@@ -123,7 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
       onRefresh: () => _videoDataCubit.refreshVideos(),
       child: ListView.builder(
         itemCount: videos.length,
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        padding: const EdgeInsets.all(16),
         itemBuilder: (context, index) {
           final video = videos[index];
           return _VideoItem(
@@ -343,16 +352,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onNextPressed() {
     final selectionState = _videoSelectionCubit.state;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '已选择 ${selectionState.selectedCount} 个视频 (${selectionState.formattedTotalSize})',
-        ),
-      ),
-    );
+    final dataState = _videoDataCubit.state;
 
-    // 这里可以导航到下一个页面
-    // Navigator.of(context).push(...);
+    if (dataState is VideoDataLoaded) {
+      // 获取选中的视频
+      final selectedVideos = dataState.videos.where((video) => selectionState.isSelected(video.id)).toList();
+
+      if (selectedVideos.isNotEmpty) {
+        // 导航到压缩配置页面
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => CompressionConfigScreen(
+              selectedVideos: selectedVideos,
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('请先选择要压缩的视频'),
+          ),
+        );
+      }
+    }
   }
 }
 
