@@ -142,8 +142,10 @@ class VideoModel {
 
     final frameRateText = '${frameRate.round()}fps';
 
-    // 如果是 HDR 视频，添加 HDR 类型标识
-    if (isHDR && hdrType != 'SDR') {
+    // 如果是杜比视界视频，添加杜比视界标识
+    if (isDolbyVision) {
+      return '$resolutionText/$frameRateText 杜比视界';
+    } else if (isHDR) {
       return '$resolutionText/$frameRateText HDR';
     } else {
       return '$resolutionText/$frameRateText';

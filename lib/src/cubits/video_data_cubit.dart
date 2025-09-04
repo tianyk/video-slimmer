@@ -124,6 +124,8 @@ class VideoDataCubit extends Cubit<VideoDataState> {
             // 获取视频元数据（包括帧率和 HDR 信息）
             final metadata = await _getVideoMetadata(file.path);
 
+            print('metadata: ${metadata['hdrType']}');
+
             videos.add(VideoModel(
               id: videoEntity.id,
               title: videoEntity.title ?? '未知视频',

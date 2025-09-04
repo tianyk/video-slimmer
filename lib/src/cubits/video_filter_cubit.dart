@@ -10,8 +10,8 @@ class VideoFilterState extends Equatable {
   /// 是否降序排列
   final bool sortDescending;
 
-  /// 当前筛选条件
-  final String? selectedFilter;
+  /// 选中的过滤标签：['1080p', '4k', '24fps', '30fps', '60fps', 'hdr', 'dolby_vision']
+  final Set<String> selectedTags;
 
   /// 搜索关键词
   final String? searchKeyword;
@@ -19,20 +19,20 @@ class VideoFilterState extends Equatable {
   const VideoFilterState({
     this.sortBy = 'date',
     this.sortDescending = true,
-    this.selectedFilter,
+    this.selectedTags = const {},
     this.searchKeyword,
   });
 
   VideoFilterState copyWith({
     String? sortBy,
     bool? sortDescending,
-    String? selectedFilter,
+    Set<String>? selectedTags,
     String? searchKeyword,
   }) {
     return VideoFilterState(
       sortBy: sortBy ?? this.sortBy,
       sortDescending: sortDescending ?? this.sortDescending,
-      selectedFilter: selectedFilter != null ? (selectedFilter == 'null' ? null : selectedFilter) : this.selectedFilter,
+      selectedTags: selectedTags ?? this.selectedTags,
       searchKeyword: searchKeyword != null ? (searchKeyword.isEmpty ? null : searchKeyword) : this.searchKeyword,
     );
   }
@@ -46,31 +46,37 @@ class VideoFilterState extends Equatable {
       result = result.where((video) => video.title.toLowerCase().contains(searchKeyword!.toLowerCase())).toList();
     }
 
-    // 应用分辨率和帧率筛选
-    if (selectedFilter != null) {
-      switch (selectedFilter) {
-        case '4K60':
-          result = result.where((video) => video.width >= 3840 && video.frameRate >= 58).toList();
-          break;
-        case '4K30':
-          result = result.where((video) => video.width >= 3840 && video.frameRate < 58).toList();
-          break;
-        case '1080p60':
-          result = result.where((video) => video.width >= 1920 && video.width < 3840 && video.frameRate >= 58).toList();
-          break;
-        case '1080p30':
-          result = result.where((video) => video.width >= 1920 && video.width < 3840 && video.frameRate < 45).toList();
-          break;
-        case '720p':
-          result = result.where((video) => video.width >= 1280 && video.width < 1920).toList();
-          break;
-        case 'large_files':
-          result = result.where((video) => video.sizeBytes > 100 * 1024 * 1024).toList(); // 大于100MB
-          break;
-        case 'long_videos':
-          result = result.where((video) => video.duration > 300).toList(); // 大于5分钟
-          break;
-      }
+    // 应用标签筛选
+    if (selectedTags.isNotEmpty) {
+      result = result.where((video) {
+        // 检查每个选中的标签
+        for (String tag in selectedTags) {
+          switch (tag) {
+            case '1080p':
+              if (!((video.width >= 1920 && video.width < 2160) || (video.height >= 1920 && video.height < 2160))) return false;
+              break;
+            case '4k':
+              if (!(video.width >= 2160 || video.height >= 2160)) return false;
+              break;
+            case '24fps':
+              if (!(video.frameRate >= 23 && video.frameRate <= 25)) return false;
+              break;
+            case '30fps':
+              if (!(video.frameRate >= 28 && video.frameRate <= 32)) return false;
+              break;
+            case '60fps':
+              if (!(video.frameRate >= 58 && video.frameRate <= 62)) return false;
+              break;
+            case 'hdr':
+              if (!video.isHDR) return false;
+              break;
+            case 'dolby_vision':
+              if (!video.isDolbyVision) return false;
+              break;
+          }
+        }
+        return true; // 所有标签条件都满足
+      }).toList();
     }
 
     // 应用排序
@@ -98,7 +104,7 @@ class VideoFilterState extends Equatable {
   }
 
   @override
-  List<Object?> get props => [sortBy, sortDescending, selectedFilter, searchKeyword];
+  List<Object?> get props => [sortBy, sortDescending, selectedTags, searchKeyword];
 }
 
 /// 视频筛选和排序管理
@@ -118,14 +124,20 @@ class VideoFilterCubit extends Cubit<VideoFilterState> {
     emit(state.copyWith(sortDescending: !state.sortDescending));
   }
 
-  /// 设置筛选条件
-  void setFilter(String? filter) {
-    emit(state.copyWith(selectedFilter: filter));
+  /// 切换标签选择状态
+  void toggleTag(String tag) {
+    final newTags = Set<String>.from(state.selectedTags);
+    if (newTags.contains(tag)) {
+      newTags.remove(tag);
+    } else {
+      newTags.add(tag);
+    }
+    emit(state.copyWith(selectedTags: newTags));
   }
 
-  /// 清除筛选
-  void clearFilter() {
-    emit(state.copyWith(selectedFilter: 'null'));
+  /// 清除所有标签筛选
+  void clearAllTags() {
+    emit(state.copyWith(selectedTags: <String>{}));
   }
 
   /// 设置搜索关键词
@@ -147,30 +159,29 @@ class VideoFilterCubit extends Cubit<VideoFilterState> {
   String getFilterDescription() {
     final filters = <String>[];
 
-    if (state.selectedFilter != null) {
-      switch (state.selectedFilter) {
-        case '4K60':
-          filters.add('4K/60fps');
-          break;
-        case '4K30':
-          filters.add('4K/30fps');
-          break;
-        case '1080p60':
-          filters.add('1080p/60fps');
-          break;
-        case '1080p30':
-          filters.add('1080p/30fps');
-          break;
-        case '720p':
-          filters.add('720p');
-          break;
-        case 'large_files':
-          filters.add('大文件');
-          break;
-        case 'long_videos':
-          filters.add('长视频');
-          break;
-      }
+    // 添加选中的标签
+    if (state.selectedTags.isNotEmpty) {
+      final tagLabels = state.selectedTags.map((tag) {
+        switch (tag) {
+          case '1080p':
+            return '1080p';
+          case '4k':
+            return '4K';
+          case '24fps':
+            return '24帧';
+          case '30fps':
+            return '30帧';
+          case '60fps':
+            return '60帧';
+          case 'hdr':
+            return 'HDR';
+          case 'dolby_vision':
+            return '杜比视界';
+          default:
+            return tag;
+        }
+      }).toList();
+      filters.addAll(tagLabels);
     }
 
     if (state.searchKeyword != null && state.searchKeyword!.isNotEmpty) {

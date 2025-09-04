@@ -227,69 +227,103 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showFilterDialog(BuildContext context) {
     final filterCubit = context.read<VideoFilterCubit>();
-    final currentState = filterCubit.state;
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (modalContext) {
-        return Column(
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                '按分辨率和类型筛选',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              ),
-            ),
-            ListTile(
-              title: const Text('全部视频'),
-              trailing: currentState.selectedFilter == null ? const Icon(Icons.check) : null,
-              onTap: () {
-                filterCubit.clearFilter();
-                Navigator.pop(modalContext);
-              },
-            ),
-            ListTile(
-              title: const Text('4K/60fps'),
-              trailing: currentState.selectedFilter == '4K60' ? const Icon(Icons.check) : null,
-              onTap: () {
-                filterCubit.setFilter('4K60');
-                Navigator.pop(modalContext);
-              },
-            ),
-            ListTile(
-              title: const Text('4K/30fps'),
-              trailing: currentState.selectedFilter == '4K30' ? const Icon(Icons.check) : null,
-              onTap: () {
-                filterCubit.setFilter('4K30');
-                Navigator.pop(modalContext);
-              },
-            ),
-            ListTile(
-              title: const Text('1080p/30fps'),
-              trailing: currentState.selectedFilter == '1080p30' ? const Icon(Icons.check) : null,
-              onTap: () {
-                filterCubit.setFilter('1080p30');
-                Navigator.pop(modalContext);
-              },
-            ),
-            ListTile(
-              title: const Text('大文件 (>100MB)'),
-              trailing: currentState.selectedFilter == 'large_files' ? const Icon(Icons.check) : null,
-              onTap: () {
-                filterCubit.setFilter('large_files');
-                Navigator.pop(modalContext);
-              },
-            ),
-            ListTile(
-              title: const Text('长视频 (>5分钟)'),
-              trailing: currentState.selectedFilter == 'long_videos' ? const Icon(Icons.check) : null,
-              onTap: () {
-                filterCubit.setFilter('long_videos');
-                Navigator.pop(modalContext);
-              },
-            ),
-          ],
+        return BlocProvider.value(
+          value: filterCubit,
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.6,
+            minChildSize: 0.3,
+            maxChildSize: 0.9,
+            expand: false,
+            builder: (context, scrollController) {
+              return BlocBuilder<VideoFilterCubit, VideoFilterState>(
+                builder: (context, filterState) {
+                  return Container(
+                    decoration: const BoxDecoration(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                    child: Column(
+                      children: [
+                        // 标题栏
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                '筛选标签',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                              ),
+                              if (filterState.selectedTags.isNotEmpty)
+                                TextButton(
+                                  onPressed: () => filterCubit.clearAllTags(),
+                                  child: const Text('清除全部'),
+                                ),
+                            ],
+                          ),
+                        ),
+                        // 标签列表
+                        Expanded(
+                          child: ListView(
+                            controller: scrollController,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            children: [
+                              _FilterListTile(
+                                title: '1080p',
+                                tag: '1080p',
+                                isSelected: filterState.selectedTags.contains('1080p'),
+                                onTap: () => filterCubit.toggleTag('1080p'),
+                              ),
+                              _FilterListTile(
+                                title: '4K',
+                                tag: '4k',
+                                isSelected: filterState.selectedTags.contains('4k'),
+                                onTap: () => filterCubit.toggleTag('4k'),
+                              ),
+                              _FilterListTile(
+                                title: '24帧',
+                                tag: '24fps',
+                                isSelected: filterState.selectedTags.contains('24fps'),
+                                onTap: () => filterCubit.toggleTag('24fps'),
+                              ),
+                              _FilterListTile(
+                                title: '30帧',
+                                tag: '30fps',
+                                isSelected: filterState.selectedTags.contains('30fps'),
+                                onTap: () => filterCubit.toggleTag('30fps'),
+                              ),
+                              _FilterListTile(
+                                title: '60帧',
+                                tag: '60fps',
+                                isSelected: filterState.selectedTags.contains('60fps'),
+                                onTap: () => filterCubit.toggleTag('60fps'),
+                              ),
+                              _FilterListTile(
+                                title: 'HDR',
+                                tag: 'hdr',
+                                isSelected: filterState.selectedTags.contains('hdr'),
+                                onTap: () => filterCubit.toggleTag('hdr'),
+                              ),
+                              _FilterListTile(
+                                title: '杜比视界',
+                                tag: 'dolby_vision',
+                                isSelected: filterState.selectedTags.contains('dolby_vision'),
+                                onTap: () => filterCubit.toggleTag('dolby_vision'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
         );
       },
     );
@@ -375,7 +409,7 @@ class _VideoItem extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: video.isHDR ? AppTheme.prosperityGold.withValues(alpha: 0.3) : AppTheme.prosperityGold.withValues(alpha: 0.2),
+                                color: AppTheme.prosperityGold.withValues(alpha: 0.3),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -529,6 +563,36 @@ class _SortOption extends StatelessWidget {
             )
           : null,
       onTap: () => onTap(sortKey),
+    );
+  }
+}
+
+/// 🏷️ 过滤列表项组件
+class _FilterListTile extends StatelessWidget {
+  final String title;
+  final String tag;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _FilterListTile({
+    required this.title,
+    required this.tag,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          color: isSelected ? AppTheme.prosperityGold : null,
+        ),
+      ),
+      trailing: isSelected ? const Icon(Icons.check, color: AppTheme.prosperityGold) : null,
+      onTap: onTap,
     );
   }
 }
