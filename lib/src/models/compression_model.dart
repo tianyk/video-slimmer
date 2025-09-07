@@ -61,17 +61,16 @@ class CompressionConfig {
       customResolution: customResolution ?? this.customResolution,
       customCRF: customCRF ?? this.customCRF,
       customBitrate: customBitrate ?? this.customBitrate,
-      keepOriginalFrameRate: keepOriginalFrameRate ?? this.keepOriginalFrameRate,
+      keepOriginalFrameRate:
+          keepOriginalFrameRate ?? this.keepOriginalFrameRate,
       customFrameRate: customFrameRate ?? this.customFrameRate,
       keepOriginalAudio: keepOriginalAudio ?? this.keepOriginalAudio,
       audioQuality: audioQuality ?? this.audioQuality,
       estimatedSize: estimatedSize ?? this.estimatedSize,
-      estimatedCompressionRatio: estimatedCompressionRatio ?? this.estimatedCompressionRatio,
+      estimatedCompressionRatio:
+          estimatedCompressionRatio ?? this.estimatedCompressionRatio,
     );
   }
-
-  /// 是否使用自定义设置
-  bool get isCustom => preset == CompressionPreset.custom;
 
   /// 获取显示名称
   String get displayName {
@@ -82,8 +81,6 @@ class CompressionConfig {
         return '平衡模式';
       case CompressionPreset.maxCompression:
         return '极限压缩';
-      case CompressionPreset.custom:
-        return '自定义';
     }
   }
 
@@ -96,8 +93,6 @@ class CompressionConfig {
         return '画质与文件大小平衡';
       case CompressionPreset.maxCompression:
         return '适合分享 • 最大化压缩';
-      case CompressionPreset.custom:
-        return '高级用户自定义参数';
     }
   }
 
@@ -108,7 +103,8 @@ class CompressionConfig {
     final size = estimatedSize!;
     if (size < 1024) return '$size B';
     if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)} KB';
-    if (size < 1024 * 1024 * 1024) return '${(size / 1024 / 1024).toStringAsFixed(1)} MB';
+    if (size < 1024 * 1024 * 1024)
+      return '${(size / 1024 / 1024).toStringAsFixed(1)} MB';
     return '${(size / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
   }
 
@@ -129,9 +125,6 @@ enum CompressionPreset {
 
   /// 极限压缩 - 最大化压缩，适合分享
   maxCompression,
-
-  /// 自定义 - 用户自定义参数
-  custom,
 }
 
 /// 视频分辨率枚举
@@ -231,15 +224,6 @@ class CompressionPresetConfig {
           keepOriginalFrameRate: false,
           audioQuality: 96,
         );
-
-      case CompressionPreset.custom:
-        return const CompressionConfig(
-          preset: CompressionPreset.custom,
-          customCRF: 23,
-          customBitrate: 4000,
-          keepOriginalFrameRate: true,
-          audioQuality: 128,
-        );
     }
   }
 
@@ -262,11 +246,6 @@ class CompressionPresetConfig {
         break;
       case CompressionPreset.maxCompression:
         compressionFactor = 0.2; // 保留20%
-        break;
-      case CompressionPreset.custom:
-        // 基于CRF值估算
-        final crf = config.customCRF ?? 23;
-        compressionFactor = (35 - crf) / 30; // CRF越高，压缩越多
         break;
     }
 

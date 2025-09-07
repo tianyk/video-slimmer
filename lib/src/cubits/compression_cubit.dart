@@ -11,9 +11,6 @@ class CompressionState extends Equatable {
   /// 选中的视频列表
   final List<VideoModel> selectedVideos;
 
-  /// 是否展开自定义设置
-  final bool isCustomSettingsExpanded;
-
   /// 是否正在计算预估大小
   final bool isCalculatingEstimate;
 
@@ -29,7 +26,6 @@ class CompressionState extends Equatable {
   const CompressionState({
     this.config = const CompressionConfig(),
     this.selectedVideos = const [],
-    this.isCustomSettingsExpanded = false,
     this.isCalculatingEstimate = false,
     this.totalOriginalSize = 0,
     this.totalEstimatedSize,
@@ -39,7 +35,6 @@ class CompressionState extends Equatable {
   CompressionState copyWith({
     CompressionConfig? config,
     List<VideoModel>? selectedVideos,
-    bool? isCustomSettingsExpanded,
     bool? isCalculatingEstimate,
     int? totalOriginalSize,
     int? totalEstimatedSize,
@@ -48,8 +43,8 @@ class CompressionState extends Equatable {
     return CompressionState(
       config: config ?? this.config,
       selectedVideos: selectedVideos ?? this.selectedVideos,
-      isCustomSettingsExpanded: isCustomSettingsExpanded ?? this.isCustomSettingsExpanded,
-      isCalculatingEstimate: isCalculatingEstimate ?? this.isCalculatingEstimate,
+      isCalculatingEstimate:
+          isCalculatingEstimate ?? this.isCalculatingEstimate,
       totalOriginalSize: totalOriginalSize ?? this.totalOriginalSize,
       totalEstimatedSize: totalEstimatedSize ?? this.totalEstimatedSize,
       estimatedSavings: estimatedSavings ?? this.estimatedSavings,
@@ -59,8 +54,12 @@ class CompressionState extends Equatable {
   /// 格式化原始大小显示
   String get formattedOriginalSize {
     if (totalOriginalSize < 1024) return '$totalOriginalSize B';
-    if (totalOriginalSize < 1024 * 1024) return '${(totalOriginalSize / 1024).toStringAsFixed(1)} KB';
-    if (totalOriginalSize < 1024 * 1024 * 1024) return '${(totalOriginalSize / 1024 / 1024).toStringAsFixed(1)} MB';
+    if (totalOriginalSize < 1024 * 1024) {
+      return '${(totalOriginalSize / 1024).toStringAsFixed(1)} KB';
+    }
+    if (totalOriginalSize < 1024 * 1024 * 1024) {
+      return '${(totalOriginalSize / 1024 / 1024).toStringAsFixed(1)} MB';
+    }
     return '${(totalOriginalSize / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
   }
 
@@ -72,7 +71,9 @@ class CompressionState extends Equatable {
     final size = totalEstimatedSize!;
     if (size < 1024) return '$size B';
     if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)} KB';
-    if (size < 1024 * 1024 * 1024) return '${(size / 1024 / 1024).toStringAsFixed(1)} MB';
+    if (size < 1024 * 1024 * 1024) {
+      return '${(size / 1024 / 1024).toStringAsFixed(1)} MB';
+    }
     return '${(size / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
   }
 
@@ -84,13 +85,17 @@ class CompressionState extends Equatable {
     final size = estimatedSavings!;
     if (size < 1024) return '$size B';
     if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)} KB';
-    if (size < 1024 * 1024 * 1024) return '${(size / 1024 / 1024).toStringAsFixed(1)} MB';
+    if (size < 1024 * 1024 * 1024) {
+      return '${(size / 1024 / 1024).toStringAsFixed(1)} MB';
+    }
     return '${(size / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
   }
 
   /// 压缩比例百分比
   String get compressionPercentage {
-    if (isCalculatingEstimate || totalEstimatedSize == null || totalOriginalSize == 0) {
+    if (isCalculatingEstimate ||
+        totalEstimatedSize == null ||
+        totalOriginalSize == 0) {
       return '计算中...';
     }
 
@@ -107,7 +112,6 @@ class CompressionState extends Equatable {
   List<Object?> get props => [
         config,
         selectedVideos,
-        isCustomSettingsExpanded,
         isCalculatingEstimate,
         totalOriginalSize,
         totalEstimatedSize,
@@ -121,7 +125,8 @@ class CompressionCubit extends Cubit<CompressionState> {
 
   /// 初始化选中的视频
   void initializeWithVideos(List<VideoModel> videos) {
-    final totalSize = videos.fold<int>(0, (sum, video) => sum + video.sizeBytes);
+    final totalSize =
+        videos.fold<int>(0, (sum, video) => sum + video.sizeBytes);
 
     emit(state.copyWith(
       selectedVideos: videos,
@@ -138,76 +143,8 @@ class CompressionCubit extends Cubit<CompressionState> {
 
     emit(state.copyWith(
       config: newConfig,
-      isCustomSettingsExpanded: preset == CompressionPreset.custom,
     ));
 
-    _calculateEstimatedSize();
-  }
-
-  /// 切换自定义设置展开状态
-  void toggleCustomSettings() {
-    emit(state.copyWith(
-      isCustomSettingsExpanded: !state.isCustomSettingsExpanded,
-    ));
-  }
-
-  /// 更新自定义分辨率
-  void updateCustomResolution(VideoResolution resolution) {
-    final newConfig = state.config.copyWith(customResolution: resolution);
-
-    emit(state.copyWith(config: newConfig));
-    _calculateEstimatedSize();
-  }
-
-  /// 更新自定义CRF值
-  void updateCustomCRF(int crf) {
-    final newConfig = state.config.copyWith(customCRF: crf);
-
-    emit(state.copyWith(config: newConfig));
-    _calculateEstimatedSize();
-  }
-
-  /// 更新自定义码率
-  void updateCustomBitrate(int bitrate) {
-    final newConfig = state.config.copyWith(customBitrate: bitrate);
-
-    emit(state.copyWith(config: newConfig));
-    _calculateEstimatedSize();
-  }
-
-  /// 切换保持原始帧率
-  void toggleKeepOriginalFrameRate() {
-    final newConfig = state.config.copyWith(
-      keepOriginalFrameRate: !state.config.keepOriginalFrameRate,
-    );
-
-    emit(state.copyWith(config: newConfig));
-    _calculateEstimatedSize();
-  }
-
-  /// 更新自定义帧率
-  void updateCustomFrameRate(double frameRate) {
-    final newConfig = state.config.copyWith(customFrameRate: frameRate);
-
-    emit(state.copyWith(config: newConfig));
-    _calculateEstimatedSize();
-  }
-
-  /// 切换保持原始音频
-  void toggleKeepOriginalAudio() {
-    final newConfig = state.config.copyWith(
-      keepOriginalAudio: !state.config.keepOriginalAudio,
-    );
-
-    emit(state.copyWith(config: newConfig));
-    _calculateEstimatedSize();
-  }
-
-  /// 更新音频质量
-  void updateAudioQuality(int quality) {
-    final newConfig = state.config.copyWith(audioQuality: quality);
-
-    emit(state.copyWith(config: newConfig));
     _calculateEstimatedSize();
   }
 
@@ -265,7 +202,9 @@ class CompressionCubit extends Cubit<CompressionState> {
         'crf': state.config.customCRF,
         'bitrate': state.config.customBitrate,
         'resolution': state.config.customResolution?.name,
-        'frameRate': state.config.keepOriginalFrameRate ? null : state.config.customFrameRate,
+        'frameRate': state.config.keepOriginalFrameRate
+            ? null
+            : state.config.customFrameRate,
         'audioQuality': state.config.audioQuality,
         'keepOriginalAudio': state.config.keepOriginalAudio,
       },
