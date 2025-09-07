@@ -5,6 +5,7 @@
 - FLUTTER_ROOT缺失
 - Bundle identifier冲突
 - iOS相册权限不弹窗
+- 权限插件未注册 (MissingPluginException)
 
 ---
 
@@ -107,6 +108,62 @@ Ambiguous organization: {cc.kekek, com.example}
 
 ---
 
+### 问题4: 权限插件未注册 (MissingPluginException) ✅
+**症状**:
+```
+flutter: snapshot.error: MissingPluginException(No implementation found for method requestPermissions on channel flutter.baseflow.com/permissions/methods)
+```
+
+**确认原因**:
+- `pubspec.yaml` 中包含 `module` 配置导致 Flutter 将项目视为模块而非完整应用
+- 插件注册文件 `ios/Runner/GeneratedPluginRegistrant.m` 为空
+- Flutter 没有生成正确的插件注册代码
+
+**解决方案**:
+
+1. **移除 pubspec.yaml 中的 module 配置**:
+   ```yaml
+   # 删除这部分配置
+   flutter:
+     uses-material-design: true
+     # module:                    ← 删除
+     #   iosBundleIdentifier: ... ← 删除
+   ```
+
+2. **完全清理并重新生成**:
+   ```bash
+   # 清理 Flutter 缓存
+   flutter clean
+   
+   # 清理 iOS 依赖
+   cd ios
+   rm -rf Pods Podfile.lock
+   cd ..
+   
+   # 重新获取依赖并生成插件注册
+   flutter pub get
+   
+   # 重新安装 iOS Pods
+   cd ios && pod install && cd ..
+   ```
+
+3. **验证插件注册文件**:
+   检查 `ios/Runner/GeneratedPluginRegistrant.m` 应包含:
+   ```objc
+   + (void)registerWithRegistry:(NSObject<FlutterPluginRegistry>*)registry {
+     [PermissionHandlerPlugin registerWithRegistrar:[registry registrarForPlugin:@"PermissionHandlerPlugin"]];
+     [PhotoManagerPlugin registerWithRegistrar:[registry registrarForPlugin:@"PhotoManagerPlugin"]];
+     // ... 其他插件
+   }
+   ```
+
+**验证结果**:
+- ✅ 权限插件正确注册
+- ✅ 应用启动不再报 MissingPluginException 错误
+- ✅ 权限请求功能正常工作
+
+---
+
 ## 一步解决
 
 ```bash
@@ -136,6 +193,50 @@ cd ios && pod install
 
 ---
 
+### 问题5: VM Service 连接问题 ⚠️
+**症状**:
+```
+vm-service: Error: Unhandled exception:
+WebSocketException: Invalid WebSocket upgrade request
+[ERROR:flutter/runtime/dart_isolate.cc(1380)] Unhandled exception:
+WebSocketException: Invalid WebSocket upgrade request
+Connecting to the VM Service is taking longer than expected...
+Still attempting to connect to the VM Service...
+```
+
+**确认原因**:
+- Flutter 调试器与 iOS 模拟器/设备的 VM Service 连接异常
+- WebSocket 升级请求格式不正确
+- 可能与网络配置或防火墙设置相关
+
+**临时解决方案**:
+1. **使用指定端口运行**:
+   ```bash
+   flutter run --host-vmservice-port 8080
+   ```
+
+2. **重启模拟器和 Flutter**:
+   ```bash
+   # 关闭模拟器
+   xcrun simctl shutdown all
+   
+   # 重启模拟器
+   open -a Simulator
+   
+   # 重新运行
+   flutter run
+   ```
+
+3. **使用 Release 模式**:
+   ```bash
+   flutter run --release
+   ```
+
+**当前状态**: 应用可以正常构建和运行，但调试连接不稳定  
+**影响**: 不影响应用功能，仅影响热重载和调试体验  
+
+---
+
 ## 验证
 
 ```bash
@@ -151,4 +252,6 @@ flutter run --simulator
 - ✅ bundle 统一为 `cc.kekek.videoslimmer`  
 - ✅ CocoaPods 正常运行
 - ✅ iOS 相册权限弹窗 & 设置入口正常
+- ✅ 权限插件注册问题已解决 (移除 module 配置)
 - ❌ CLI 阻塞：Apple Silicon Flutter 已知问题
+- ⚠️ VM Service 连接问题：WebSocket 升级请求无效

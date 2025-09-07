@@ -44,6 +44,7 @@ class HomeScreenWrapper extends StatelessWidget {
         }
 
         if (snapshot.hasError) {
+          print('snapshot.error: ${snapshot.error}');
           return ErrorScreen(
             errorMessage: snapshot.error?.toString() ?? '未知错误',
             brandGold: AppTheme.prosperityGold,
