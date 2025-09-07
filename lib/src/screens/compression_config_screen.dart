@@ -15,7 +15,8 @@ class CompressionConfigScreen extends StatefulWidget {
   });
 
   @override
-  State<CompressionConfigScreen> createState() => _CompressionConfigScreenState();
+  State<CompressionConfigScreen> createState() =>
+      _CompressionConfigScreenState();
 }
 
 class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
@@ -46,38 +47,106 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),
-        body: BlocBuilder<CompressionCubit, CompressionState>(
-          builder: (context, state) {
-            return Column(
-              children: [
-                // 主要内容区域
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 预设方案选择
-                        _buildPresetSection(state),
-                        const SizedBox(height: 24),
+        body: Stack(
+          children: [
+            // 主要内容区域
+            BlocBuilder<CompressionCubit, CompressionState>(
+              builder: (context, state) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 预设方案选择
+                      _buildPresetSection(state),
+                      const SizedBox(height: 24),
 
-                        // 自定义设置 (V1.5功能，暂时隐藏)
-                        if (state.config.preset == CompressionPreset.custom) _buildCustomSettingsSection(state),
+                      // 自定义设置 (V1.5功能，暂时隐藏)
+                      if (state.config.preset == CompressionPreset.custom)
+                        _buildCustomSettingsSection(state),
 
-                        // 预计结果
-                        _buildEstimateSection(state),
-                      ],
-                    ),
+                      // 预计结果
+                      _buildEstimateSection(state),
+
+                      // 底部添加额外空间，避免被按钮遮挡
+                      const SizedBox(height: 80),
+                    ],
                   ),
-                ),
+                );
+              },
+            ),
 
-                // 底部开始压缩按钮
-                _buildBottomButton(state),
-              ],
-            );
-          },
+            // 浮动按钮
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 32,
+              child: _buildFloatingButtonContent(),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  /// 构建浮动按钮内容
+  Widget _buildFloatingButtonContent() {
+    return BlocBuilder<CompressionCubit, CompressionState>(
+      builder: (context, state) {
+        return Container(
+          height: 56,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ElevatedButton(
+            onPressed: state.canStartCompression ? _onStartCompression : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: state.canStartCompression
+                  ? AppTheme.prosperityGold
+                  : AppTheme.prosperityLightGray,
+              foregroundColor: state.canStartCompression
+                  ? AppTheme.prosperityBlack
+                  : AppTheme.prosperityLightGold.withValues(alpha: 0.5),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (state.isCalculatingEstimate)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                          AppTheme.prosperityBlack),
+                    ),
+                  )
+                else
+                  const Icon(Icons.compress),
+                const SizedBox(width: 8),
+                Text(
+                  state.isCalculatingEstimate ? '计算中...' : '开始压缩',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -99,21 +168,25 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
             _PresetTile(
               preset: CompressionPreset.highQuality,
               isSelected: state.config.preset == CompressionPreset.highQuality,
-              onTap: () => _compressionCubit.setPreset(CompressionPreset.highQuality),
+              onTap: () =>
+                  _compressionCubit.setPreset(CompressionPreset.highQuality),
             ),
 
             // 平衡模式选项
             _PresetTile(
               preset: CompressionPreset.balanced,
               isSelected: state.config.preset == CompressionPreset.balanced,
-              onTap: () => _compressionCubit.setPreset(CompressionPreset.balanced),
+              onTap: () =>
+                  _compressionCubit.setPreset(CompressionPreset.balanced),
             ),
 
             // 极限压缩选项
             _PresetTile(
               preset: CompressionPreset.maxCompression,
-              isSelected: state.config.preset == CompressionPreset.maxCompression,
-              onTap: () => _compressionCubit.setPreset(CompressionPreset.maxCompression),
+              isSelected:
+                  state.config.preset == CompressionPreset.maxCompression,
+              onTap: () =>
+                  _compressionCubit.setPreset(CompressionPreset.maxCompression),
             ),
           ],
         ),
@@ -218,14 +291,16 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
               '高画质',
               style: TextStyle(
                 fontSize: 14,
-                color: AppTheme.prosperityLightGold.withValues(alpha: 0.7), // 金色主题的较暗版本
+                color: AppTheme.prosperityLightGold
+                    .withValues(alpha: 0.7), // 金色主题的较暗版本
               ),
             ),
             Text(
               '小文件',
               style: TextStyle(
                 fontSize: 14,
-                color: AppTheme.prosperityLightGold.withValues(alpha: 0.7), // 金色主题的较暗版本
+                color: AppTheme.prosperityLightGold
+                    .withValues(alpha: 0.7), // 金色主题的较暗版本
               ),
             ),
           ],
@@ -341,7 +416,8 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
             // 压缩后大小
             _EstimateRow(
               label: '压缩后约:',
-              value: '${state.formattedEstimatedSize} (${state.compressionPercentage})',
+              value:
+                  '${state.formattedEstimatedSize} (${state.compressionPercentage})',
               icon: Icons.compress,
               isHighlighted: true,
             ),
@@ -365,24 +441,6 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
               ),
             ],
           ],
-        ),
-      ),
-    );
-  }
-
-  /// 构建底部按钮
-  Widget _buildBottomButton(CompressionState state) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      child: SizedBox(
-        width: double.infinity,
-        height: 56, // 统一高度与首页一致
-        child: ElevatedButton(
-          onPressed: state.canStartCompression ? _onStartCompression : null,
-          child: Text(
-            state.isCalculatingEstimate ? '计算中...' : '开始压缩',
-            style: const TextStyle(fontSize: 16),
-          ),
         ),
       ),
     );
@@ -437,10 +495,14 @@ class _PresetTile extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isSelected ? AppTheme.prosperityGold : AppTheme.prosperityLightGold.withValues(alpha: 0.5),
+              color: isSelected
+                  ? AppTheme.prosperityGold
+                  : AppTheme.prosperityLightGold.withValues(alpha: 0.5),
               width: isSelected ? 2 : 1,
             ),
-            color: isSelected ? AppTheme.prosperityGold.withValues(alpha: 0.1) : Colors.transparent,
+            color: isSelected
+                ? AppTheme.prosperityGold.withValues(alpha: 0.1)
+                : Colors.transparent,
           ),
           child: Row(
             children: [
@@ -451,10 +513,13 @@ class _PresetTile extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: isSelected ? AppTheme.prosperityGold : AppTheme.prosperityLightGold.withValues(alpha: 0.5),
+                    color: isSelected
+                        ? AppTheme.prosperityGold
+                        : AppTheme.prosperityLightGold.withValues(alpha: 0.5),
                     width: 2,
                   ),
-                  color: isSelected ? AppTheme.prosperityGold : Colors.transparent,
+                  color:
+                      isSelected ? AppTheme.prosperityGold : Colors.transparent,
                 ),
                 child: isSelected
                     ? const Icon(
@@ -477,7 +542,9 @@ class _PresetTile extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: isSelected ? AppTheme.prosperityGold : AppTheme.prosperityLightGold,
+                        color: isSelected
+                            ? AppTheme.prosperityGold
+                            : AppTheme.prosperityLightGold,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -485,7 +552,8 @@ class _PresetTile extends StatelessWidget {
                       config.description,
                       style: TextStyle(
                         fontSize: 14,
-                        color: AppTheme.prosperityLightGold.withValues(alpha: 0.7), // 金色主题的较暗版本
+                        color: AppTheme.prosperityLightGold
+                            .withValues(alpha: 0.7), // 金色主题的较暗版本
                       ),
                     ),
                   ],
@@ -529,7 +597,8 @@ class _EstimateRow extends StatelessWidget {
           label,
           style: TextStyle(
             fontSize: 14,
-            color: AppTheme.prosperityLightGold.withValues(alpha: 0.7), // 金色主题的较暗版本
+            color: AppTheme.prosperityLightGold
+                .withValues(alpha: 0.7), // 金色主题的较暗版本
           ),
         ),
         const SizedBox(width: 8),
@@ -539,7 +608,10 @@ class _EstimateRow extends StatelessWidget {
             style: TextStyle(
               fontSize: isHighlighted ? 16 : 14,
               fontWeight: isHighlighted ? FontWeight.w600 : FontWeight.normal,
-              color: valueColor ?? (isHighlighted ? AppTheme.prosperityLightGold : AppTheme.prosperityLightGold.withValues(alpha: 0.7)),
+              color: valueColor ??
+                  (isHighlighted
+                      ? AppTheme.prosperityLightGold
+                      : AppTheme.prosperityLightGold.withValues(alpha: 0.7)),
             ),
             textAlign: TextAlign.end,
           ),

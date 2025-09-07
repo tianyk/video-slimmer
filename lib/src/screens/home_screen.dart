@@ -67,59 +67,92 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          body: Column(
+          body: Stack(
             children: [
               // 主要内容区域
-              Expanded(
-                child: BlocBuilder<VideoDataCubit, VideoDataState>(
-                  builder: (context, dataState) {
-                    if (dataState is VideoDataInitial) {
-                      return const SizedBox.shrink();
-                    } else if (dataState is VideoDataLoading) {
-                      return const Center(child: CircularProgressIndicator());
-                    } else if (dataState is VideoDataLoaded) {
-                      return BlocBuilder<VideoFilterCubit, VideoFilterState>(
-                        builder: (context, filterState) {
-                          final filteredVideos = filterState.applyFilterAndSort(dataState.videos);
-                          return _buildVideoList(filteredVideos);
-                        },
-                      );
-                    } else if (dataState is VideoDataError) {
-                      return _buildErrorState(dataState.message);
-                    } else {
-                      return const Center(child: Text('未知状态'));
-                    }
-                  },
-                ),
-              ),
-
-              // 底部按钮区域
-              BlocBuilder<VideoSelectionCubit, VideoSelectionState>(
-                builder: (context, selectionState) {
-                  if (selectionState.selectedCount > 0) {
-                    return Container(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 56, // 统一高度
-                        child: ElevatedButton(
-                          onPressed: _onNextPressed,
-                          child: Text(
-                            '下一步 (${selectionState.selectedCount})',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ),
-                      ),
-                    );
-                  } else {
+              BlocBuilder<VideoDataCubit, VideoDataState>(
+                builder: (context, dataState) {
+                  if (dataState is VideoDataInitial) {
                     return const SizedBox.shrink();
+                  } else if (dataState is VideoDataLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (dataState is VideoDataLoaded) {
+                    return BlocBuilder<VideoFilterCubit, VideoFilterState>(
+                      builder: (context, filterState) {
+                        final filteredVideos =
+                            filterState.applyFilterAndSort(dataState.videos);
+                        return _buildVideoList(filteredVideos);
+                      },
+                    );
+                  } else if (dataState is VideoDataError) {
+                    return _buildErrorState(dataState.message);
+                  } else {
+                    return const Center(child: Text('未知状态'));
                   }
                 },
+              ),
+
+              // 浮动按钮
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 32,
+                child: _buildFloatingButtonContent(),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  /// 构建浮动按钮内容
+  Widget _buildFloatingButtonContent() {
+    return BlocBuilder<VideoSelectionCubit, VideoSelectionState>(
+      builder: (context, selectionState) {
+        if (selectionState.selectedCount > 0) {
+          return Container(
+            height: 56,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ElevatedButton(
+              onPressed: _onNextPressed,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.prosperityGold,
+                foregroundColor: AppTheme.prosperityBlack,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.arrow_forward),
+                  const SizedBox(width: 8),
+                  Text(
+                    '下一步 (${selectionState.selectedCount})',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        } else {
+          return const SizedBox.shrink();
+        }
+      },
     );
   }
 
@@ -204,28 +237,32 @@ class _HomeScreenState extends State<HomeScreen> {
               sortKey: 'size',
               currentSort: currentState.sortBy,
               isDescending: currentState.sortDescending,
-              onTap: (sortKey) => _handleSortSelection(modalContext, filterCubit, sortKey, currentState),
+              onTap: (sortKey) => _handleSortSelection(
+                  modalContext, filterCubit, sortKey, currentState),
             ),
             _SortOption(
               title: '拍摄时间',
               sortKey: 'date',
               currentSort: currentState.sortBy,
               isDescending: currentState.sortDescending,
-              onTap: (sortKey) => _handleSortSelection(modalContext, filterCubit, sortKey, currentState),
+              onTap: (sortKey) => _handleSortSelection(
+                  modalContext, filterCubit, sortKey, currentState),
             ),
             _SortOption(
               title: '视频时长',
               sortKey: 'duration',
               currentSort: currentState.sortBy,
               isDescending: currentState.sortDescending,
-              onTap: (sortKey) => _handleSortSelection(modalContext, filterCubit, sortKey, currentState),
+              onTap: (sortKey) => _handleSortSelection(
+                  modalContext, filterCubit, sortKey, currentState),
             ),
             _SortOption(
               title: '文件名称',
               sortKey: 'title',
               currentSort: currentState.sortBy,
               isDescending: currentState.sortDescending,
-              onTap: (sortKey) => _handleSortSelection(modalContext, filterCubit, sortKey, currentState),
+              onTap: (sortKey) => _handleSortSelection(
+                  modalContext, filterCubit, sortKey, currentState),
             ),
             const SizedBox(height: 16),
           ],
@@ -253,7 +290,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 builder: (context, filterState) {
                   return Container(
                     decoration: const BoxDecoration(
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(20)),
                     ),
                     child: Column(
                       children: [
@@ -265,7 +303,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               const Text(
                                 '筛选标签',
-                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w600),
                               ),
                               if (filterState.selectedTags.isNotEmpty)
                                 TextButton(
@@ -284,44 +323,52 @@ class _HomeScreenState extends State<HomeScreen> {
                               _FilterListTile(
                                 title: '1080p',
                                 tag: '1080p',
-                                isSelected: filterState.selectedTags.contains('1080p'),
+                                isSelected:
+                                    filterState.selectedTags.contains('1080p'),
                                 onTap: () => filterCubit.toggleTag('1080p'),
                               ),
                               _FilterListTile(
                                 title: '4K',
                                 tag: '4k',
-                                isSelected: filterState.selectedTags.contains('4k'),
+                                isSelected:
+                                    filterState.selectedTags.contains('4k'),
                                 onTap: () => filterCubit.toggleTag('4k'),
                               ),
                               _FilterListTile(
                                 title: '24帧',
                                 tag: '24fps',
-                                isSelected: filterState.selectedTags.contains('24fps'),
+                                isSelected:
+                                    filterState.selectedTags.contains('24fps'),
                                 onTap: () => filterCubit.toggleTag('24fps'),
                               ),
                               _FilterListTile(
                                 title: '30帧',
                                 tag: '30fps',
-                                isSelected: filterState.selectedTags.contains('30fps'),
+                                isSelected:
+                                    filterState.selectedTags.contains('30fps'),
                                 onTap: () => filterCubit.toggleTag('30fps'),
                               ),
                               _FilterListTile(
                                 title: '60帧',
                                 tag: '60fps',
-                                isSelected: filterState.selectedTags.contains('60fps'),
+                                isSelected:
+                                    filterState.selectedTags.contains('60fps'),
                                 onTap: () => filterCubit.toggleTag('60fps'),
                               ),
                               _FilterListTile(
                                 title: 'HDR',
                                 tag: 'hdr',
-                                isSelected: filterState.selectedTags.contains('hdr'),
+                                isSelected:
+                                    filterState.selectedTags.contains('hdr'),
                                 onTap: () => filterCubit.toggleTag('hdr'),
                               ),
                               _FilterListTile(
                                 title: '杜比视界',
                                 tag: 'dolby_vision',
-                                isSelected: filterState.selectedTags.contains('dolby_vision'),
-                                onTap: () => filterCubit.toggleTag('dolby_vision'),
+                                isSelected: filterState.selectedTags
+                                    .contains('dolby_vision'),
+                                onTap: () =>
+                                    filterCubit.toggleTag('dolby_vision'),
                               ),
                             ],
                           ),
@@ -339,7 +386,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// 处理排序选择逻辑
-  void _handleSortSelection(BuildContext context, VideoFilterCubit filterCubit, String sortKey, VideoFilterState currentState) {
+  void _handleSortSelection(BuildContext context, VideoFilterCubit filterCubit,
+      String sortKey, VideoFilterState currentState) {
     if (currentState.sortBy == sortKey) {
       // 🔄 如果已经是当前排序字段，切换升序/降序
       filterCubit.toggleSortDirection();
@@ -356,7 +404,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (dataState is VideoDataLoaded) {
       // 获取选中的视频
-      final selectedVideos = dataState.videos.where((video) => selectionState.isSelected(video.id)).toList();
+      final selectedVideos = dataState.videos
+          .where((video) => selectionState.isSelected(video.id))
+          .toList();
 
       if (selectedVideos.isNotEmpty) {
         // 导航到压缩配置页面
@@ -390,19 +440,24 @@ class _VideoItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<VideoSelectionCubit, VideoSelectionState>(
       // 只有这个视频的选择状态变化时才重建
-      buildWhen: (previous, current) => previous.isSelected(video.id) != current.isSelected(video.id),
+      buildWhen: (previous, current) =>
+          previous.isSelected(video.id) != current.isSelected(video.id),
       builder: (context, selectionState) {
         final isSelected = selectionState.isSelected(video.id);
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           elevation: isSelected ? 8 : 2,
-          color: isSelected ? AppTheme.prosperityDarkGold.withValues(alpha: 0.2) : AppTheme.prosperityGray,
+          color: isSelected
+              ? AppTheme.prosperityDarkGold.withValues(alpha: 0.2)
+              : AppTheme.prosperityGray,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
           child: InkWell(
-            onTap: () => context.read<VideoSelectionCubit>().toggleSelection(video.id, video.sizeBytes.toDouble()),
+            onTap: () => context
+                .read<VideoSelectionCubit>()
+                .toggleSelection(video.id, video.sizeBytes.toDouble()),
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -429,14 +484,19 @@ class _VideoItem extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: AppTheme.prosperityGold.withValues(alpha: 0.3),
+                                color: AppTheme.prosperityGold
+                                    .withValues(alpha: 0.3),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 video.videoSpecification,
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: AppTheme.prosperityGold),
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppTheme.prosperityGold),
                               ),
                             ),
                           ],
@@ -480,7 +540,9 @@ class _VideoItem extends StatelessWidget {
                   // 选择框
                   Checkbox(
                     value: isSelected,
-                    onChanged: (value) => context.read<VideoSelectionCubit>().toggleSelection(video.id, video.sizeBytes.toDouble()),
+                    onChanged: (value) => context
+                        .read<VideoSelectionCubit>()
+                        .toggleSelection(video.id, video.sizeBytes.toDouble()),
                     activeColor: AppTheme.prosperityGold,
                     checkColor: Colors.black,
                   ),
@@ -613,7 +675,9 @@ class _FilterListTile extends StatelessWidget {
           color: isSelected ? AppTheme.prosperityGold : null,
         ),
       ),
-      trailing: isSelected ? const Icon(Icons.check, color: AppTheme.prosperityGold) : null,
+      trailing: isSelected
+          ? const Icon(Icons.check, color: AppTheme.prosperityGold)
+          : null,
       onTap: onTap,
     );
   }
