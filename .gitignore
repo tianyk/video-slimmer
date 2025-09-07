@@ -50,11 +50,9 @@ app.*.map.json
 coverage/
 
 # Android related
-**/android/**/gradle-wrapper.jar
+# Keep Gradle wrapper tracked; ignore only caches and local configs
 **/android/.gradle
 **/android/captures/
-**/android/gradlew
-**/android/gradlew.bat
 **/android/local.properties
 **/android/**/GeneratedPluginRegistrant.java
 **/android/key.properties
@@ -95,6 +93,13 @@ ios/build/
 
 # macOS related
 **/macos/Flutter/GeneratedPluginRegistrant.swift
+**/macos/Flutter/ephemeral
+
+# Linux related
+**/linux/flutter/ephemeral
+
+# Windows related
+**/windows/flutter/ephemeral
 
 # Flutter module related (should be ignored in most cases)
 .android/
