@@ -178,13 +178,15 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
             const SizedBox(height: 16),
             Row(
               children: [
-                _buildStatChip('已完成', taskInfo.completedCount, Colors.green),
+                _buildStatChip(
+                    '已完成', taskInfo.completedCount, AppTheme.prosperityGold),
                 const SizedBox(width: 8),
                 _buildStatChip(
                     '等待中', taskInfo.waitingCount, AppTheme.prosperityLightGold),
                 const SizedBox(width: 8),
                 if (taskInfo.cancelledCount > 0)
-                  _buildStatChip('已取消', taskInfo.cancelledCount, Colors.orange),
+                  _buildStatChip('已取消', taskInfo.cancelledCount,
+                      AppTheme.prosperityLightGray),
                 const SizedBox(width: 8),
                 if (taskInfo.errorCount > 0)
                   _buildStatChip('失败', taskInfo.errorCount, Colors.red),
@@ -738,9 +740,9 @@ class _VideoProgressItem extends StatelessWidget {
       case VideoCompressionStatus.compressing:
         return AppTheme.prosperityGold;
       case VideoCompressionStatus.completed:
-        return Colors.green;
+        return AppTheme.prosperityGold;
       case VideoCompressionStatus.cancelled:
-        return Colors.orange;
+        return AppTheme.prosperityLightGray;
       case VideoCompressionStatus.error:
         return Colors.red;
     }
@@ -751,7 +753,7 @@ class _VideoProgressItem extends StatelessWidget {
     switch (videoInfo.status) {
       case VideoCompressionStatus.waiting:
       case VideoCompressionStatus.compressing:
-        return Colors.red.withValues(alpha: 0.2);
+        return AppTheme.prosperityGold.withValues(alpha: 0.1);
       case VideoCompressionStatus.completed:
         return AppTheme.prosperityGold.withValues(alpha: 0.2);
       case VideoCompressionStatus.cancelled:
@@ -765,7 +767,7 @@ class _VideoProgressItem extends StatelessWidget {
     switch (videoInfo.status) {
       case VideoCompressionStatus.waiting:
       case VideoCompressionStatus.compressing:
-        return Colors.red;
+        return AppTheme.prosperityGold;
       case VideoCompressionStatus.completed:
       case VideoCompressionStatus.cancelled:
       case VideoCompressionStatus.error:
