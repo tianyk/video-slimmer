@@ -68,6 +68,12 @@ class VideoModel {
   /// 相册系统实体引用 - 用于获取缩略图等原生功能
   final AssetEntity? assetEntity;
 
+  /// 是否在iCloud中（需要下载）
+  final bool isInCloud;
+
+  /// 是否本地可用（已下载到设备）
+  final bool isLocallyAvailable;
+
   const VideoModel({
     required this.id,
     required this.title,
@@ -83,6 +89,8 @@ class VideoModel {
     this.hdrType = 'SDR',
     this.colorSpace = 'Unknown',
     this.assetEntity,
+    this.isInCloud = false,
+    this.isLocallyAvailable = true,
   });
 
   /// 分辨率字符串，格式：宽度×高度（如1920×1080）
@@ -168,6 +176,22 @@ class VideoModel {
     return isHDR || frameRate >= 60;
   }
 
+  /// 获取储存状态描述
+  String get storageStatus {
+    if (isInCloud && !isLocallyAvailable) {
+      return '☁️ iCloud中';
+    } else if (isInCloud && isLocallyAvailable) {
+      return '📱 已下载';
+    } else {
+      return '📱 本地';
+    }
+  }
+
+  /// 是否需要从iCloud下载
+  bool get needsDownload {
+    return isInCloud && !isLocallyAvailable;
+  }
+
   /// 创建更新后的VideoModel副本
   VideoModel copyWith({
     String? id,
@@ -184,6 +208,8 @@ class VideoModel {
     String? hdrType,
     String? colorSpace,
     AssetEntity? assetEntity,
+    bool? isInCloud,
+    bool? isLocallyAvailable,
   }) {
     return VideoModel(
       id: id ?? this.id,
@@ -200,6 +226,8 @@ class VideoModel {
       hdrType: hdrType ?? this.hdrType,
       colorSpace: colorSpace ?? this.colorSpace,
       assetEntity: assetEntity ?? this.assetEntity,
+      isInCloud: isInCloud ?? this.isInCloud,
+      isLocallyAvailable: isLocallyAvailable ?? this.isLocallyAvailable,
     );
   }
 }

@@ -118,13 +118,18 @@ class VideoDataCubit extends Cubit<VideoDataState> {
         for (final videoEntity in videoAssets) {
           final file = await videoEntity.file;
           if (file != null) {
+            // 检测iCloud储存状态
+            final isLocallyAvailable = await videoEntity.isLocallyAvailable();
+            final isInCloud = !isLocallyAvailable;
+
+            // 获取文件大小（注意：如果是iCloud文件，这可能是缓存大小）
             final fileSize = await file.length();
             totalSize += fileSize;
 
             // 获取视频元数据（包括帧率和 HDR 信息）
             final metadata = await _getVideoMetadata(file.path);
 
-            print('metadata: ${metadata['hdrType']}');
+            print('视频 ${videoEntity.title}: iCloud=${isInCloud}, 本地可用=${isLocallyAvailable}, 文件大小=${fileSize}');
 
             videos.add(VideoModel(
               id: videoEntity.id,
@@ -141,6 +146,8 @@ class VideoDataCubit extends Cubit<VideoDataState> {
               hdrType: metadata['hdrType'] ?? 'SDR',
               colorSpace: metadata['colorSpace'] ?? 'Unknown',
               assetEntity: videoEntity,
+              isInCloud: isInCloud,
+              isLocallyAvailable: isLocallyAvailable,
             ));
           }
         }
