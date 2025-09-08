@@ -5,6 +5,7 @@ import '../constants/app_theme.dart';
 import '../cubits/compression_cubit.dart';
 import '../models/compression_model.dart';
 import '../models/video_model.dart';
+import 'compression_progress_screen.dart';
 
 class CompressionConfigScreen extends StatefulWidget {
   final List<VideoModel> selectedVideos;
@@ -229,7 +230,7 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
               label: '节省空间:',
               value: state.formattedSavings,
               icon: Icons.storage,
-              valueColor: Colors.green,
+              valueColor: AppTheme.prosperityGold,
             ),
 
             // 计算中时显示loading
@@ -249,24 +250,15 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
 
   /// 开始压缩
   void _onStartCompression() {
-    // 显示压缩任务信息
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '准备压缩 ${widget.selectedVideos.length} 个视频\n'
-          '预计节省 ${_compressionCubit.state.formattedSavings}',
+    // 导航到压缩进度页面
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => CompressionProgressScreen(
+          selectedVideos: widget.selectedVideos,
+          compressionConfig: _compressionCubit.state.config,
         ),
-        duration: const Duration(seconds: 3),
       ),
     );
-
-    // TODO: 导航到压缩进度页面
-    // final taskInfo = _compressionCubit.getCompressionTaskInfo();
-    // Navigator.of(context).push(
-    //   MaterialPageRoute(
-    //     builder: (context) => CompressionProgressScreen(taskInfo: taskInfo),
-    //   ),
-    // );
   }
 }
 
