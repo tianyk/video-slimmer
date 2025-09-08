@@ -85,7 +85,7 @@ class VideoDataCubit extends Cubit<VideoDataState> {
   VideoDataCubit() : super(const VideoDataInitial());
 
   // MethodChannel for iOS native API
-  static const _platform = MethodChannel('video_metadata');
+  static const _platform = MethodChannel('cc.kevin.videoslimmer');
 
   /// 加载所有视频
   Future<void> loadVideos() async {
@@ -118,18 +118,41 @@ class VideoDataCubit extends Cubit<VideoDataState> {
         for (final videoEntity in videoAssets) {
           final file = await videoEntity.file;
           if (file != null) {
-            // 检测iCloud储存状态
+            // 检测iCloud储存状态（使用photo_manager的方法）
             final isLocallyAvailable = await videoEntity.isLocallyAvailable();
             final isInCloud = !isLocallyAvailable;
 
-            // 获取文件大小（注意：如果是iCloud文件，这可能是缓存大小）
-            final fileSize = await file.length();
+            // 获取真实文件大小（使用新的原生API）
+            final realFileSize = await _getRealFileSize(videoEntity.id);
+            final localFileSize = await file.length();
+
+            // 如果获取真实大小失败，使用本地文件大小作为备用
+            final fileSize = realFileSize ?? localFileSize;
             totalSize += fileSize;
 
             // 获取视频元数据（包括帧率和 HDR 信息）
             final metadata = await _getVideoMetadata(file.path);
 
-            print('视频 ${videoEntity.title}: iCloud=${isInCloud}, 本地可用=${isLocallyAvailable}, 文件大小=${fileSize}');
+            // 获取详细的iCloud状态信息
+            final cloudStatus = await _getCloudStatus(videoEntity.id);
+
+            print('===== 视频信息调试 =====');
+            print('视频: ${videoEntity.title}');
+            print('iCloud状态: ${isInCloud}');
+            print('本地可用: ${isLocallyAvailable}');
+            print('AssetEntity尺寸: ${videoEntity.width}x${videoEntity.height}');
+            print('AssetEntity时长: ${videoEntity.duration}秒');
+            print('本地文件大小: ${localFileSize} 字节');
+            print('真实文件大小: ${realFileSize ?? "获取失败"} 字节');
+            print('使用文件大小: ${fileSize} 字节');
+            print('云状态详情: ${cloudStatus}');
+            print('元数据获取: ${metadata.isNotEmpty ? "成功" : "失败"}');
+            if (metadata.isNotEmpty) {
+              print('帧率: ${metadata['frameRate']}');
+              print('HDR: ${metadata['isHDR']}');
+              print('色彩空间: ${metadata['colorSpace']}');
+            }
+            print('========================');
 
             videos.add(VideoModel(
               id: videoEntity.id,
@@ -228,5 +251,46 @@ class VideoDataCubit extends Cubit<VideoDataState> {
       'hdrType': 'SDR',
       'colorSpace': 'Unknown',
     };
+  }
+
+  /// 通过 iOS 原生 API 获取资源的真实文件大小
+  /// 即使文件在iCloud中，也能获取原始文件大小
+  Future<int?> _getRealFileSize(String assetId) async {
+    try {
+      final result = await _platform.invokeMethod('getAssetFileSize', {
+        'assetId': assetId,
+      });
+
+      if (result != null && result is Map) {
+        final sizeInfo = Map<String, dynamic>.from(result);
+        final fileSize = sizeInfo['fileSize'];
+        if (fileSize is int) {
+          return fileSize;
+        } else if (fileSize is double) {
+          return fileSize.toInt();
+        }
+      }
+    } catch (e) {
+      print('获取真实文件大小失败: $e');
+    }
+
+    return null;
+  }
+
+  /// 通过 iOS 原生 API 获取资源的详细iCloud状态
+  Future<Map<String, dynamic>?> _getCloudStatus(String assetId) async {
+    try {
+      final result = await _platform.invokeMethod('getAssetCloudStatus', {
+        'assetId': assetId,
+      });
+
+      if (result != null && result is Map) {
+        return Map<String, dynamic>.from(result);
+      }
+    } catch (e) {
+      print('获取iCloud状态失败: $e');
+    }
+
+    return null;
   }
 }

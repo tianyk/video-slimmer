@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import AVFoundation
+import Photos
 
 /// VideoSlimmer iOS 应用入口类
 /// 负责 Flutter 应用的初始化和原生功能桥接
@@ -18,7 +19,7 @@ import AVFoundation
     let controller: FlutterViewController = window?.rootViewController as! FlutterViewController
     
     // 创建视频元数据通道，用于 Flutter 与 iOS 原生代码通信
-    let videoMetadataChannel = FlutterMethodChannel(name: "video_metadata", binaryMessenger: controller.binaryMessenger)
+    let videoMetadataChannel = FlutterMethodChannel(name: "cc.kevin.videoslimmer", binaryMessenger: controller.binaryMessenger)
     
     // 设置方法调用处理器
     videoMetadataChannel.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
@@ -27,6 +28,10 @@ import AVFoundation
         self.getVideoFrameRate(call: call, result: result)
       } else if call.method == "getVideoMetadata" {
         self.getVideoMetadata(call: call, result: result)
+      } else if call.method == "getAssetFileSize" {
+        self.getAssetFileSize(call: call, result: result)
+      } else if call.method == "getAssetCloudStatus" {
+        self.getAssetCloudStatus(call: call, result: result)
       } else {
         // 未实现的方法返回错误
         result(FlutterMethodNotImplemented)
@@ -217,5 +222,161 @@ import AVFoundation
     }
     
     return (isHDR, isDolbyVision, hdrType, colorSpace)
+  }
+  
+  /// 获取PHAsset的真实文件大小
+  /// 使用PHAssetResource API获取原始文件大小，即使文件在iCloud中
+  /// - Parameters:
+  ///   - call: Flutter 方法调用对象，包含assetId参数
+  ///   - result: 结果回调，返回文件大小（字节）或错误信息
+  private func getAssetFileSize(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    // 解析方法参数，获取资源ID
+    guard let args = call.arguments as? [String: Any],
+          let assetId = args["assetId"] as? String else {
+      result(FlutterError(code: "INVALID_ARGUMENT", message: "Invalid asset ID", details: nil))
+      return
+    }
+    
+    // 通过localIdentifier获取PHAsset
+    let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil)
+    guard let asset = fetchResult.firstObject else {
+      result(FlutterError(code: "ASSET_NOT_FOUND", message: "Asset not found", details: nil))
+      return
+    }
+    
+    // 获取资源列表
+    let resources = PHAssetResource.assetResources(for: asset)
+    
+    // 查找视频资源
+    for resource in resources {
+      if resource.type == .video {
+        // 尝试获取文件大小
+        if let fileSize = resource.value(forKey: "fileSize") as? Int64 {
+          let uniformTypeIdentifier = resource.uniformTypeIdentifier
+          
+          // 构建详细信息
+          let sizeInfo: [String: Any] = [
+            "fileSize": fileSize,
+            "uniformTypeIdentifier": uniformTypeIdentifier,
+            "originalFilename": resource.originalFilename ?? "unknown",
+            "resourceType": resource.type.rawValue
+          ]
+          
+          result(sizeInfo)
+          return
+        }
+      }
+    }
+    
+    // 如果无法通过资源获取大小，尝试其他方法
+    // 对于某些iCloud视频，可能需要使用PHImageManager
+    let options = PHVideoRequestOptions()
+    options.isNetworkAccessAllowed = false // 不自动从iCloud下载
+    options.deliveryMode = .fastFormat
+    
+    PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { (avAsset, audioMix, info) in
+      DispatchQueue.main.async {
+        if let urlAsset = avAsset as? AVURLAsset {
+          do {
+            let resourceValues = try urlAsset.url.resourceValues(forKeys: [.fileSizeKey])
+            if let fileSize = resourceValues.fileSize {
+              let sizeInfo: [String: Any] = [
+                "fileSize": Int64(fileSize),
+                "uniformTypeIdentifier": "video/unknown",
+                "originalFilename": "unknown",
+                "resourceType": PHAssetResourceType.video.rawValue,
+                "source": "AVURLAsset"
+              ]
+              result(sizeInfo)
+            } else {
+              result(FlutterError(code: "SIZE_NOT_AVAILABLE", message: "File size not available", details: nil))
+            }
+          } catch {
+            result(FlutterError(code: "SIZE_ERROR", message: "Error getting file size: \(error.localizedDescription)", details: nil))
+          }
+        } else {
+          result(FlutterError(code: "ASSET_UNAVAILABLE", message: "Video asset unavailable", details: nil))
+        }
+      }
+    }
+  }
+  
+  /// 获取PHAsset的iCloud状态信息
+  /// 返回详细的iCloud存储状态和下载信息
+  /// - Parameters:
+  ///   - call: Flutter 方法调用对象，包含assetId参数
+  ///   - result: 结果回调，返回状态信息字典
+  private func getAssetCloudStatus(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    // 解析方法参数，获取资源ID
+    guard let args = call.arguments as? [String: Any],
+          let assetId = args["assetId"] as? String else {
+      result(FlutterError(code: "INVALID_ARGUMENT", message: "Invalid asset ID", details: nil))
+      return
+    }
+    
+    // 通过localIdentifier获取PHAsset
+    let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil)
+    guard let asset = fetchResult.firstObject else {
+      result(FlutterError(code: "ASSET_NOT_FOUND", message: "Asset not found", details: nil))
+      return
+    }
+    
+    // 获取资源列表以检查iCloud状态
+    let resources = PHAssetResource.assetResources(for: asset)
+    var isInCloud = false
+    var estimatedSize: Int64 = 0
+    
+    for resource in resources {
+      if resource.type == .video {
+        // 检查资源是否在iCloud中
+        if let fileSize = resource.value(forKey: "fileSize") as? Int64 {
+          estimatedSize = fileSize
+        }
+        
+        // 检查本地可用性
+        let manager = PHAssetResourceManager.default()
+        let requestOptions = PHAssetResourceRequestOptions()
+        requestOptions.isNetworkAccessAllowed = false
+        
+        // 通过尝试获取数据来判断是否在本地
+        var locallyAvailable = true
+        let semaphore = DispatchSemaphore(value: 0)
+        
+        manager.requestData(for: resource, options: requestOptions) { (data) in
+          // 如果能获取到数据，说明本地可用
+        } completionHandler: { (error) in
+          if let error = error as NSError? {
+            // 检查是否是网络访问需要的错误（iCloud文件）
+            if error.domain == "CloudPhotoLibraryErrorDomain" ||
+               error.code == -1 { // 网络访问需要的错误码
+              locallyAvailable = false
+              isInCloud = true
+            }
+          }
+          semaphore.signal()
+        }
+        
+        // 等待检查完成（最多等待0.5秒）
+        _ = semaphore.wait(timeout: .now() + 0.5)
+        
+        // 构建状态信息
+        let cloudStatus: [String: Any] = [
+          "assetId": assetId,
+          "isInCloud": isInCloud,
+          "isLocallyAvailable": locallyAvailable,
+          "estimatedFileSize": estimatedSize,
+          "pixelWidth": asset.pixelWidth,
+          "pixelHeight": asset.pixelHeight,
+          "duration": asset.duration,
+          "mediaType": asset.mediaType.rawValue,
+          "mediaSubtypes": asset.mediaSubtypes.rawValue
+        ]
+        
+        result(cloudStatus)
+        return
+      }
+    }
+    
+    result(FlutterError(code: "VIDEO_RESOURCE_NOT_FOUND", message: "Video resource not found", details: nil))
   }
 }
