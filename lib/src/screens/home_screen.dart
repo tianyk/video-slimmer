@@ -1,8 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:photo_manager/photo_manager.dart';
 import 'package:remixicon/remixicon.dart';
 
 import '../constants/app_constants.dart';
@@ -11,6 +8,8 @@ import '../cubits/video_data_cubit.dart';
 import '../cubits/video_filter_cubit.dart';
 import '../cubits/video_selection_cubit.dart';
 import '../models/video_model.dart';
+import '../utils/date_time_utils.dart';
+import '../widgets/video_thumbnail.dart';
 import 'compression_config_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -441,7 +440,7 @@ class _VideoItem extends StatelessWidget {
               child: Row(
                 children: [
                   // 缩略图
-                  _buildThumbnail(),
+                  VideoThumbnail(assetEntity: video.assetEntity),
                   const SizedBox(width: 12),
                   // 视频信息
                   Expanded(
@@ -483,6 +482,7 @@ class _VideoItem extends StatelessWidget {
                               color: Colors.grey[600],
                             ),
                             const SizedBox(width: 4),
+                            // 视频时长，格式化显示
                             Text(
                               video.formattedDuration,
                               style: TextStyle(
@@ -498,7 +498,8 @@ class _VideoItem extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              _formatDate(video.creationDate),
+                              // 视频创建时间，格式化显示
+                              DateTimeUtils.formatToFriendlyString(video.creationDate),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[600],
@@ -529,61 +530,6 @@ class _VideoItem extends StatelessWidget {
         );
       },
     );
-  }
-
-  Widget _buildThumbnail() {
-    return SizedBox(
-      width: 80,
-      height: 60,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: video.assetEntity != null
-            ? FutureBuilder<Uint8List?>(
-                future: video.assetEntity!.thumbnailDataWithSize(
-                  const ThumbnailSize(160, 120),
-                ),
-                builder: (context, snapshot) {
-                  if (snapshot.hasData && snapshot.data != null) {
-                    return Image.memory(
-                      snapshot.data!,
-                      fit: BoxFit.cover,
-                      width: 80,
-                      height: 60,
-                    );
-                  }
-                  return Container(
-                    color: Colors.grey[300],
-                    child: Icon(Remix.video_line, color: Colors.grey[600]),
-                  );
-                },
-              )
-            : Container(
-                color: Colors.grey[300],
-                child: Icon(Remix.video_line, color: Colors.grey[600]),
-              ),
-      ),
-    );
-  }
-
-  /// 格式化日期显示
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final videoDate = DateTime(date.year, date.month, date.day);
-
-    if (videoDate == today) {
-      return '今天';
-    } else if (videoDate == yesterday) {
-      return '昨天';
-    } else if (now.difference(date).inDays < 7) {
-      const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-      return weekdays[date.weekday - 1];
-    } else if (date.year == now.year) {
-      return '${date.month}月${date.day}日';
-    } else {
-      return '${date.year}年${date.month}月';
-    }
   }
 
   /// 构建符合品牌色系的iCloud状态指示器

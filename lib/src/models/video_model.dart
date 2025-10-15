@@ -1,5 +1,7 @@
 import 'package:photo_manager/photo_manager.dart';
 
+import '../utils/duration_utils.dart';
+
 /// 视频数据模型 - 表示可压缩视频的核心信息
 class VideoModel {
   /// 视频唯一标识符（来自相册系统的ID）
@@ -107,16 +109,7 @@ class VideoModel {
   /// 格式化视频时长，根据时长自适应显示格式
   /// 小于1小时: mm:ss；≥1小时: hh:mm:ss
   String get formattedDuration {
-    final totalSeconds = duration.round();
-    final hours = totalSeconds ~/ 3600;
-    final minutes = (totalSeconds % 3600) ~/ 60;
-    final seconds = totalSeconds % 60;
-
-    if (hours > 0) {
-      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-    } else {
-      return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-    }
+    return DurationUtils.formatToClock(duration);
   }
 
   /// 获取分辨率级别（4K/1080p/720p等）+帧率描述

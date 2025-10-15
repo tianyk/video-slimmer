@@ -3,9 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../constants/app_theme.dart';
 import '../cubits/compression_progress_cubit.dart';
+import '../models/compression_model.dart';
 import '../models/compression_progress_model.dart';
 import '../models/video_model.dart';
-import '../models/compression_model.dart';
+import '../utils/date_time_utils.dart';
+import '../widgets/video_thumbnail.dart';
 
 class CompressionProgressScreen extends StatefulWidget {
   final List<VideoModel> selectedVideos;
@@ -18,8 +20,7 @@ class CompressionProgressScreen extends StatefulWidget {
   });
 
   @override
-  State<CompressionProgressScreen> createState() =>
-      _CompressionProgressScreenState();
+  State<CompressionProgressScreen> createState() => _CompressionProgressScreenState();
 }
 
 class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
@@ -77,141 +78,13 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
             // 主要内容区域
             BlocBuilder<CompressionProgressCubit, CompressionProgressState>(
               builder: (context, state) {
-                return Column(
-                  children: [
-                    // 整体进度区域
-                    _buildOverallProgressSection(state.taskInfo),
-
-                    // 视频列表
-                    Expanded(
-                      child: _buildVideoList(state.taskInfo),
-                    ),
-                  ],
-                );
+                return _buildVideoList(state.taskInfo);
               },
             ),
 
             // 底部浮动按钮
             _buildFloatingButton(),
           ],
-        ),
-      ),
-    );
-  }
-
-  /// 构建整体进度区域
-  Widget _buildOverallProgressSection(CompressionTaskInfo taskInfo) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.prosperityGray,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppTheme.prosperityGold.withValues(alpha: 0.3),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 状态标题
-          Row(
-            children: [
-              Icon(
-                _getStatusIcon(taskInfo.status),
-                color: AppTheme.prosperityGold,
-                size: 24,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                taskInfo.statusText,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.prosperityGold,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          // 整体进度条
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '整体进度: ${taskInfo.progressText}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: AppTheme.prosperityLightGold,
-                    ),
-                  ),
-                  Text(
-                    '${(taskInfo.overallProgress * 100).toStringAsFixed(0)}%',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.prosperityGold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              LinearProgressIndicator(
-                value: taskInfo.overallProgress,
-                backgroundColor:
-                    AppTheme.prosperityLightGray.withValues(alpha: 0.3),
-                valueColor: const AlwaysStoppedAnimation<Color>(
-                    AppTheme.prosperityGold),
-                minHeight: 8,
-              ),
-            ],
-          ),
-
-          // 统计信息
-          if (taskInfo.status != CompressionTaskStatus.preparing) ...[
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                _buildStatChip(
-                    '已完成', taskInfo.completedCount, AppTheme.prosperityGold),
-                const SizedBox(width: 8),
-                _buildStatChip(
-                    '等待中', taskInfo.waitingCount, AppTheme.prosperityLightGold),
-                const SizedBox(width: 8),
-                if (taskInfo.cancelledCount > 0)
-                  _buildStatChip('已取消', taskInfo.cancelledCount,
-                      AppTheme.prosperityLightGray),
-                const SizedBox(width: 8),
-                if (taskInfo.errorCount > 0)
-                  _buildStatChip('失败', taskInfo.errorCount, Colors.red),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// 构建统计芯片
-  Widget _buildStatChip(String label, int count, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        '$label: $count',
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: color,
         ),
       ),
     );
@@ -224,7 +97,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
       itemCount: taskInfo.videos.length,
       itemBuilder: (context, index) {
         final videoInfo = taskInfo.videos[index];
-        return _VideoProgressItem(
+        return _VideoProgressItem2(
           key: ValueKey(videoInfo.video.id),
           videoInfo: videoInfo,
           onAction: (action) => _handleVideoAction(videoInfo, action),
@@ -319,8 +192,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
   }
 
   /// 显示取消视频确认对话框
-  void _showCancelVideoConfirmation(
-      BuildContext context, VideoCompressionInfo videoInfo) {
+  void _showCancelVideoConfirmation(BuildContext context, VideoCompressionInfo videoInfo) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -330,9 +202,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
           style: TextStyle(color: AppTheme.prosperityGold),
         ),
         content: Text(
-          videoInfo.status == VideoCompressionStatus.compressing
-              ? '确定要取消正在压缩的视频吗？\n当前进度将丢失。'
-              : '确定要从队列中移除这个视频吗？',
+          videoInfo.status == VideoCompressionStatus.compressing ? '确定要取消正在压缩的视频吗？\n当前进度将丢失。' : '确定要从队列中移除这个视频吗？',
           style: const TextStyle(color: AppTheme.prosperityLightGold),
         ),
         actions: [
@@ -461,6 +331,108 @@ enum VideoAction {
   preview,
 }
 
+class _VideoProgressItem2 extends StatelessWidget {
+  final VideoCompressionInfo videoInfo;
+  final Function(VideoAction) onAction;
+
+  const _VideoProgressItem2({
+    required Key key,
+    required this.videoInfo,
+    required this.onAction,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 2,
+      color: AppTheme.prosperityGray,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              VideoThumbnail(assetEntity: videoInfo.video.assetEntity),
+              const SizedBox(width: 12),
+              // 视频信息
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 主要信息行：文件大小（突出显示）
+                    Row(
+                      children: [
+                        Text(
+                          videoInfo.video.fileSize,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.prosperityLightGold,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppTheme.prosperityGold.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            videoInfo.video.videoSpecification,
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: AppTheme.prosperityGold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // 次要信息行：时长和拍摄日期
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 12,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          videoInfo.video.formattedDuration,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Icon(
+                          Icons.calendar_today,
+                          size: 12,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          DateTimeUtils.formatToFriendlyString(videoInfo.video.creationDate),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        // // iCloud状态指示器
+                        // if (videoInfo.video.isInCloud)
+                        //   Padding(
+                        //     padding: const EdgeInsets.only(left: 8),
+                        //     child: _buildCloudStatusIndicator(video),
+                        //   ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          )),
+    );
+  }
+}
+
 /// 视频进度项组件
 class _VideoProgressItem extends StatelessWidget {
   final VideoCompressionInfo videoInfo;
@@ -586,9 +558,7 @@ class _VideoProgressItem extends StatelessWidget {
           ),
 
           // 进度信息
-          if (videoInfo.status == VideoCompressionStatus.compressing ||
-              (videoInfo.status == VideoCompressionStatus.completed &&
-                  videoInfo.progress > 0)) ...[
+          if (videoInfo.status == VideoCompressionStatus.compressing || (videoInfo.status == VideoCompressionStatus.completed && videoInfo.progress > 0)) ...[
             const SizedBox(height: 12),
             _buildProgressSection(),
           ],
@@ -611,9 +581,7 @@ class _VideoProgressItem extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              videoInfo.status == VideoCompressionStatus.compressing
-                  ? '压缩进度'
-                  : '已完成',
+              videoInfo.status == VideoCompressionStatus.compressing ? '压缩进度' : '已完成',
               style: const TextStyle(
                 fontSize: 14,
                 color: AppTheme.prosperityLightGold,
