@@ -7,7 +7,6 @@ import '../models/compression_model.dart';
 import '../models/compression_progress_model.dart';
 import '../models/video_model.dart';
 import '../utils/date_time_utils.dart';
-import '../widgets/video_thumbnail.dart';
 
 class CompressionProgressScreen extends StatefulWidget {
   final List<VideoModel> selectedVideos;
@@ -97,7 +96,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
       itemCount: taskInfo.videos.length,
       itemBuilder: (context, index) {
         final videoInfo = taskInfo.videos[index];
-        return _VideoProgressItem2(
+        return _VideoProgressItem(
           key: ValueKey(videoInfo.video.id),
           videoInfo: videoInfo,
           onAction: (action) => _handleVideoAction(videoInfo, action),
@@ -331,108 +330,6 @@ enum VideoAction {
   preview,
 }
 
-class _VideoProgressItem2 extends StatelessWidget {
-  final VideoCompressionInfo videoInfo;
-  final Function(VideoAction) onAction;
-
-  const _VideoProgressItem2({
-    required Key key,
-    required this.videoInfo,
-    required this.onAction,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      color: AppTheme.prosperityGray,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              VideoThumbnail(assetEntity: videoInfo.video.assetEntity),
-              const SizedBox(width: 12),
-              // 视频信息
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 主要信息行：文件大小（突出显示）
-                    Row(
-                      children: [
-                        Text(
-                          videoInfo.video.fileSize,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.prosperityLightGold,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppTheme.prosperityGold.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            videoInfo.video.videoSpecification,
-                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: AppTheme.prosperityGold),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    // 次要信息行：时长和拍摄日期
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 12,
-                          color: Colors.grey[600],
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          videoInfo.video.formattedDuration,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.calendar_today,
-                          size: 12,
-                          color: Colors.grey[600],
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          DateTimeUtils.formatToFriendlyString(videoInfo.video.creationDate),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        // // iCloud状态指示器
-                        // if (videoInfo.video.isInCloud)
-                        //   Padding(
-                        //     padding: const EdgeInsets.only(left: 8),
-                        //     child: _buildCloudStatusIndicator(video),
-                        //   ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          )),
-    );
-  }
-}
-
 /// 视频进度项组件
 class _VideoProgressItem extends StatelessWidget {
   final VideoCompressionInfo videoInfo;
@@ -485,15 +382,55 @@ class _VideoProgressItem extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      videoInfo.video.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.prosperityLightGold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    // 状态信息
+                    Row(
+                      children: [
+                        // 状态信息
+                        Icon(
+                          _getStatusIcon(),
+                          color: _getStatusColor(),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          videoInfo.statusText,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: _getStatusColor(),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Icon(
+                          Icons.access_time,
+                          size: 12,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        // 视频时长，格式化显示
+                        Text(
+                          videoInfo.video.formattedDuration,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Icon(
+                          Icons.calendar_today,
+                          size: 12,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          // 视频创建时间，格式化显示
+                          DateTimeUtils.formatToFriendlyString(videoInfo.video.creationDate),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Row(
@@ -501,8 +438,9 @@ class _VideoProgressItem extends StatelessWidget {
                         Text(
                           videoInfo.video.fileSize,
                           style: const TextStyle(
-                            fontSize: 14,
-                            color: AppTheme.prosperityLightGray,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.prosperityLightGold,
                           ),
                         ),
                         if (videoInfo.compressedSize != null) ...[
@@ -561,12 +499,6 @@ class _VideoProgressItem extends StatelessWidget {
           if (videoInfo.status == VideoCompressionStatus.compressing || (videoInfo.status == VideoCompressionStatus.completed && videoInfo.progress > 0)) ...[
             const SizedBox(height: 12),
             _buildProgressSection(),
-          ],
-
-          // 状态信息
-          if (videoInfo.status != VideoCompressionStatus.waiting) ...[
-            const SizedBox(height: 8),
-            _buildStatusSection(),
           ],
         ],
       ),
@@ -640,20 +572,6 @@ class _VideoProgressItem extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
         ),
-        if (videoInfo.errorMessage != null) ...[
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              videoInfo.errorMessage!,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.red,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
       ],
     );
   }
