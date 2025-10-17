@@ -2,20 +2,69 @@ import 'package:equatable/equatable.dart';
 import 'video_model.dart';
 
 /// 视频压缩状态枚举
+///
+/// 状态流转概览：
+/// ```
+///   启动任务
+///      │
+///      ├── 需要下载 ──▶ waitingDownload ──▶ downloading ──▶┐
+///      │                                                   │
+///      └── 无需下载 ────────────────────────────────────────┘
+///                                                         │
+///                                                         ▼
+///                                                    waiting ──▶ compressing ──▶ completed
+///                                                       │                 │
+///                                                       ├───────────────┘
+///                                                       ├──▶ error (压缩失败，可重试回 waiting)
+///                                                       └──▶ cancelled (用户取消，可回 waiting)
+/// ```
+///
+/// 终态（不可逆）：completed, cancelled, error
+/// 可重试：error, cancelled -> waiting
 enum VideoCompressionStatus {
-  /// 等待中（队列中）
+  /// 等待下载（初始状态，排队等待占用下载并发）
+  ///
+  /// 下一步:
+  /// - downloading: 轮到该任务开始下载
+  /// - cancelled: 用户取消
+  waitingDownload,
+
+  /// 正在从 iCloud 下载
+  ///
+  /// 下一步:
+  /// - waiting: 下载完成，转换为等待压缩
+  /// - error: 下载失败
+  /// - cancelled: 用户取消
+  downloading,
+
+  /// 下载完成，等待开始压缩
+  ///
+  /// 下一步:
+  /// - compressing: 开始压缩
+  /// - cancelled: 用户取消
   waiting,
 
-  /// 压缩中
+  /// 正在压缩
+  ///
+  /// 下一步:
+  /// - completed: 压缩成功 ✅
+  /// - error: 压缩失败 ⚠️
+  /// - cancelled: 用户取消 ❌
   compressing,
 
-  /// 已完成
+  /// 已完成（终态）✅
   completed,
 
-  /// 已取消
+  /// 已取消（终态）❌
+  ///
+  /// 可操作:
+  /// - 重新压缩 -> waiting
   cancelled,
 
-  /// 压缩失败
+  /// 失败（终态）⚠️
+  ///
+  /// 可操作:
+  /// - 重试 -> waiting
   error,
 }
 
@@ -66,8 +115,7 @@ class VideoCompressionInfo extends Equatable {
       status: status ?? this.status,
       progress: progress ?? this.progress,
       errorMessage: errorMessage ?? this.errorMessage,
-      estimatedTimeRemaining:
-          estimatedTimeRemaining ?? this.estimatedTimeRemaining,
+      estimatedTimeRemaining: estimatedTimeRemaining ?? this.estimatedTimeRemaining,
       compressedSize: compressedSize ?? this.compressedSize,
       outputPath: outputPath ?? this.outputPath,
     );
@@ -76,8 +124,12 @@ class VideoCompressionInfo extends Equatable {
   /// 获取状态显示文本
   String get statusText {
     switch (status) {
+      case VideoCompressionStatus.waitingDownload:
+        return '等待下载';
       case VideoCompressionStatus.waiting:
-        return '等待中';
+        return '等待压缩';
+      case VideoCompressionStatus.downloading:
+        return '下载中';
       case VideoCompressionStatus.compressing:
         return '压缩中';
       case VideoCompressionStatus.completed:
@@ -85,15 +137,19 @@ class VideoCompressionInfo extends Equatable {
       case VideoCompressionStatus.cancelled:
         return '已取消';
       case VideoCompressionStatus.error:
-        return '压缩失败';
+        return '失败';
     }
   }
 
   /// 获取操作按钮文本
   String get actionButtonText {
     switch (status) {
+      case VideoCompressionStatus.waitingDownload:
+        return '取消排队';
       case VideoCompressionStatus.waiting:
         return '取消排队';
+      case VideoCompressionStatus.downloading:
+        return '取消下载';
       case VideoCompressionStatus.compressing:
         return '取消压缩';
       case VideoCompressionStatus.completed:
@@ -152,178 +208,31 @@ class VideoCompressionInfo extends Equatable {
       ];
 }
 
-/// 整体压缩任务状态
-enum CompressionTaskStatus {
-  /// 准备中
-  preparing,
+/// VideoCompressionStatus 扩展
+extension VideoCompressionStatusExtension on VideoCompressionStatus {
+  /// 是否是终态（不会再改变）
+  bool get isFinal => this == VideoCompressionStatus.completed || this == VideoCompressionStatus.cancelled || this == VideoCompressionStatus.error;
 
-  /// 进行中
-  inProgress,
+  /// 是否是活跃状态（正在处理中）
+  bool get isActive => this == VideoCompressionStatus.downloading || this == VideoCompressionStatus.compressing;
 
-  /// 已暂停（所有视频都被取消或完成）
-  paused,
-
-  /// 已完成
-  completed,
-
-  /// 已取消
-  cancelled,
-}
-
-/// 压缩任务信息
-class CompressionTaskInfo extends Equatable {
-  /// 任务状态
-  final CompressionTaskStatus status;
-
-  /// 视频压缩信息列表
-  final List<VideoCompressionInfo> videos;
-
-  /// 任务开始时间
-  final DateTime? startTime;
-
-  /// 任务完成时间
-  final DateTime? endTime;
-
-  /// 总体进度 (0.0-1.0)
-  final double overallProgress;
-
-  const CompressionTaskInfo({
-    this.status = CompressionTaskStatus.preparing,
-    this.videos = const [],
-    this.startTime,
-    this.endTime,
-    this.overallProgress = 0.0,
-  });
-
-  CompressionTaskInfo copyWith({
-    CompressionTaskStatus? status,
-    List<VideoCompressionInfo>? videos,
-    DateTime? startTime,
-    DateTime? endTime,
-    double? overallProgress,
-  }) {
-    return CompressionTaskInfo(
-      status: status ?? this.status,
-      videos: videos ?? this.videos,
-      startTime: startTime ?? this.startTime,
-      endTime: endTime ?? this.endTime,
-      overallProgress: overallProgress ?? this.overallProgress,
-    );
-  }
-
-  /// 获取当前正在压缩的视频
-  VideoCompressionInfo? get currentCompressingVideo {
-    try {
-      return videos.firstWhere(
-        (video) => video.status == VideoCompressionStatus.compressing,
-      );
-    } catch (e) {
-      return null;
+  /// 优先级（用于排序，数值越大优先级越高）
+  int get priority {
+    switch (this) {
+      case VideoCompressionStatus.compressing:
+        return 100;
+      case VideoCompressionStatus.downloading:
+        return 90;
+      case VideoCompressionStatus.waiting:
+        return 60;
+      case VideoCompressionStatus.waitingDownload:
+        return 50;
+      case VideoCompressionStatus.completed:
+        return 10;
+      case VideoCompressionStatus.cancelled:
+        return 5;
+      case VideoCompressionStatus.error:
+        return 1;
     }
   }
-
-  /// 获取等待中的视频数量
-  int get waitingCount {
-    return videos
-        .where((video) => video.status == VideoCompressionStatus.waiting)
-        .length;
-  }
-
-  /// 获取已完成的视频数量
-  int get completedCount {
-    return videos
-        .where((video) => video.status == VideoCompressionStatus.completed)
-        .length;
-  }
-
-  /// 获取已取消的视频数量
-  int get cancelledCount {
-    return videos
-        .where((video) => video.status == VideoCompressionStatus.cancelled)
-        .length;
-  }
-
-  /// 获取失败的视频数量
-  int get errorCount {
-    return videos
-        .where((video) => video.status == VideoCompressionStatus.error)
-        .length;
-  }
-
-  /// 总视频数量
-  int get totalCount => videos.length;
-
-  /// 任务状态文本
-  String get statusText {
-    switch (status) {
-      case CompressionTaskStatus.preparing:
-        return '准备中...';
-      case CompressionTaskStatus.inProgress:
-        return '压缩进行中';
-      case CompressionTaskStatus.paused:
-        return '已暂停';
-      case CompressionTaskStatus.completed:
-        return '压缩完成';
-      case CompressionTaskStatus.cancelled:
-        return '已取消';
-    }
-  }
-
-  /// 进度文本
-  String get progressText {
-    return '$completedCount / $totalCount';
-  }
-
-  /// 计算总原始大小
-  int get totalOriginalSize {
-    return videos.fold(0, (sum, video) => sum + video.video.sizeBytes);
-  }
-
-  /// 计算总压缩后大小
-  int get totalCompressedSize {
-    return videos
-        .where((video) => video.compressedSize != null)
-        .fold(0, (sum, video) => sum + video.compressedSize!);
-  }
-
-  /// 格式化总节省空间
-  String get formattedTotalSavings {
-    final savings = totalOriginalSize - totalCompressedSize;
-    if (savings <= 0) return '0 B';
-
-    if (savings < 1024) return '$savings B';
-    if (savings < 1024 * 1024)
-      return '${(savings / 1024).toStringAsFixed(1)} KB';
-    if (savings < 1024 * 1024 * 1024) {
-      return '${(savings / 1024 / 1024).toStringAsFixed(1)} MB';
-    }
-    return '${(savings / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
-  }
-
-  /// 是否可以开始压缩
-  bool get canStart {
-    return status == CompressionTaskStatus.preparing && videos.isNotEmpty;
-  }
-
-  /// 是否有正在进行的压缩
-  bool get hasActiveCompression {
-    return currentCompressingVideo != null;
-  }
-
-  /// 是否所有视频都已处理（完成、取消或失败）
-  bool get isAllProcessed {
-    return videos.every((video) =>
-        video.status == VideoCompressionStatus.completed ||
-        video.status == VideoCompressionStatus.cancelled ||
-        video.status == VideoCompressionStatus.error);
-  }
-
-  @override
-  List<Object?> get props => [
-        status,
-        videos,
-        startTime,
-        endTime,
-        overallProgress,
-      ];
 }

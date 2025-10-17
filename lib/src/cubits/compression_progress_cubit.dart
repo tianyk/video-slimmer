@@ -14,23 +14,106 @@ import '../models/compression_model.dart';
 
 /// 压缩进度状态
 class CompressionProgressState extends Equatable {
-  /// 任务信息
-  final CompressionTaskInfo taskInfo;
+  /// 视频压缩信息列表
+  final List<VideoCompressionInfo> videos;
 
   const CompressionProgressState({
-    this.taskInfo = const CompressionTaskInfo(),
+    this.videos = const [],
   });
 
   CompressionProgressState copyWith({
-    CompressionTaskInfo? taskInfo,
+    List<VideoCompressionInfo>? videos,
   }) {
     return CompressionProgressState(
-      taskInfo: taskInfo ?? this.taskInfo,
+      videos: videos ?? this.videos,
     );
   }
 
+  /// 总体进度 (0.0-1.0)
+  double get overallProgress {
+    if (videos.isEmpty) return 0.0;
+    double totalProgress = 0.0;
+    for (final video in videos) {
+      if (video.status == VideoCompressionStatus.completed) {
+        totalProgress += 1.0;
+      } else if (video.status == VideoCompressionStatus.compressing) {
+        totalProgress += video.progress;
+      }
+    }
+    return totalProgress / videos.length;
+  }
+
+  /// 获取当前正在压缩的视频
+  VideoCompressionInfo? get currentCompressingVideo {
+    try {
+      return videos.firstWhere(
+        (video) => video.status == VideoCompressionStatus.compressing,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// 获取等待中的视频数量
+  int get waitingCount => videos.where((v) => v.status == VideoCompressionStatus.waiting).length;
+
+  /// 获取等待下载的视频数量
+  int get waitingDownloadCount => videos.where((v) => v.status == VideoCompressionStatus.waitingDownload).length;
+
+  /// 获取已完成的视频数量
+  int get completedCount => videos.where((v) => v.status == VideoCompressionStatus.completed).length;
+
+  /// 获取已取消的视频数量
+  int get cancelledCount => videos.where((v) => v.status == VideoCompressionStatus.cancelled).length;
+
+  /// 获取失败的视频数量
+  int get errorCount => videos.where((v) => v.status == VideoCompressionStatus.error).length;
+
+  /// 获取正在下载的视频数量
+  int get downloadingCount => videos.where((v) => v.status == VideoCompressionStatus.downloading).length;
+
+  /// 获取正在下载的视频列表
+  List<VideoCompressionInfo> get downloadingVideos => videos.where((v) => v.status == VideoCompressionStatus.downloading).toList();
+
+  /// 是否有下载任务
+  bool get hasDownloading => downloadingCount > 0;
+
+  /// 总视频数量
+  int get totalCount => videos.length;
+
+  /// 是否所有视频都已处理
+  bool get isAllProcessed {
+    return videos.every((video) => video.status == VideoCompressionStatus.completed || video.status == VideoCompressionStatus.cancelled || video.status == VideoCompressionStatus.error);
+  }
+
+  /// 是否有正在进行的压缩
+  bool get hasActiveCompression => currentCompressingVideo != null;
+
+  /// 进度文本
+  String get progressText => '$completedCount / $totalCount';
+
+  /// 计算总原始大小
+  int get totalOriginalSize => videos.fold(0, (sum, video) => sum + video.video.sizeBytes);
+
+  /// 计算总压缩后大小
+  int get totalCompressedSize => videos.where((video) => video.compressedSize != null).fold(0, (sum, video) => sum + video.compressedSize!);
+
+  /// 格式化总节省空间
+  String get formattedTotalSavings {
+    final int savings = totalOriginalSize - totalCompressedSize;
+    if (savings <= 0) return '0 B';
+    if (savings < 1024) return '$savings B';
+    if (savings < 1024 * 1024) {
+      return '${(savings / 1024).toStringAsFixed(1)} KB';
+    }
+    if (savings < 1024 * 1024 * 1024) {
+      return '${(savings / 1024 / 1024).toStringAsFixed(1)} MB';
+    }
+    return '${(savings / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
+  }
+
   @override
-  List<Object?> get props => [taskInfo];
+  List<Object?> get props => [videos];
 }
 
 /// 压缩进度状态管理
@@ -49,9 +132,13 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   /// 当前FFmpeg会话是否在运行（用于取消）
   bool _isRunningSession = false;
 
+  /// 存储所有下载任务的 Future
+  final Map<String, Future<void>> _downloadTasks = {};
+
   @override
   Future<void> close() {
     _progressTimer?.cancel();
+    _downloadTasks.clear();
     return super.close();
   }
 
@@ -76,52 +163,121 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     final videoInfos = videos
         .map((video) => VideoCompressionInfo(
               video: video,
-              status: VideoCompressionStatus.waiting,
+              status: video.needsDownload ? VideoCompressionStatus.waitingDownload : VideoCompressionStatus.waiting,
               progress: 0.0,
             ))
         .toList();
 
-    final taskInfo = CompressionTaskInfo(
-      status: CompressionTaskStatus.preparing,
-      videos: videoInfos,
-      overallProgress: 0.0,
-    );
-
-    emit(state.copyWith(taskInfo: taskInfo));
+    emit(state.copyWith(videos: videoInfos));
   }
 
   /// 开始压缩任务
   void startCompression() {
-    if (!state.taskInfo.canStart) return;
+    if (state.videos.isEmpty) return;
 
     print('========== 开始执行压缩任务 ==========');
     print('任务开始时间: ${DateTime.now()}');
     print('====================================');
 
-    final updatedTaskInfo = state.taskInfo.copyWith(
-      status: CompressionTaskStatus.inProgress,
-      startTime: DateTime.now(),
+    // 第一步：调度所有需要下载的视频（具体实现由调用方补充）
+    _scheduleDownloads();
+
+    // 第二步：开始处理可压缩的视频
+    _processNextVideo();
+  }
+
+  /// 调度下载任务（占位，等待后续实现）
+  void _scheduleDownloads() {
+    // 留空：下载调度逻辑由后续实现负责。
+  }
+
+  /// 标记视频下载开始（占位，供调用方手动触发）
+  void markVideoDownloadStarted(String videoId) {
+    _updateVideoStatus(videoId, VideoCompressionStatus.downloading, progress: 0.0);
+  }
+
+  /// 标记视频下载完成（占位，供调用方手动触发）
+  void markVideoDownloaded({
+    required String videoId,
+    required String localPath,
+  }) {
+    final updatedVideos = state.videos.map((info) {
+      if (info.video.id == videoId) {
+        final VideoModel updatedVideo = info.video.copyWith(
+          path: localPath,
+          isLocallyAvailable: true,
+        );
+        return info.copyWith(
+          video: updatedVideo,
+          status: VideoCompressionStatus.waiting,
+          progress: 0.0,
+        );
+      }
+      return info;
+    }).toList();
+
+    emit(state.copyWith(videos: updatedVideos));
+
+    if (!state.hasActiveCompression) {
+      _processNextVideo();
+    }
+  }
+
+  /// 标记视频下载失败（占位，供调用方手动触发）
+  void markVideoDownloadFailed(String videoId, String message) {
+    _updateVideoStatus(
+      videoId,
+      VideoCompressionStatus.error,
+      errorMessage: message,
+      progress: 0.0,
     );
 
-    emit(state.copyWith(taskInfo: updatedTaskInfo));
-
-    // 开始处理队列中的第一个视频
-    _processNextVideo();
+    if (!state.hasActiveCompression) {
+      _processNextVideo();
+    }
   }
 
   /// 处理队列中的下一个视频
   void _processNextVideo() {
-    final waitingVideos = state.taskInfo.videos.where((video) => video.status == VideoCompressionStatus.waiting).toList();
+    final List<VideoCompressionInfo> readyVideos = state.videos.where((VideoCompressionInfo video) => video.status == VideoCompressionStatus.waiting && video.video.isLocallyAvailable).toList();
 
-    if (waitingVideos.isEmpty) {
-      // 所有视频都已处理，完成任务
+    if (readyVideos.isEmpty) {
+      // 检查是否还有下载任务
+      final bool hasPendingDownload = state.videos.any((v) => v.status == VideoCompressionStatus.waitingDownload || v.status == VideoCompressionStatus.downloading);
+
+      if (hasPendingDownload) {
+        print('[等待] 正在等待下载任务完成...');
+        return;
+      }
+
       _completeTask();
       return;
     }
 
-    // 开始压缩第一个等待中的视频
-    final videoToCompress = waitingVideos.first;
+    // 开始压缩第一个准备好的视频
+    final videoToCompress = readyVideos.first;
     _startVideoCompression(videoToCompress);
+  }
+
+  /// 辅助方法：更新视频状态
+  void _updateVideoStatus(
+    String videoId,
+    VideoCompressionStatus status, {
+    double? progress,
+    String? errorMessage,
+  }) {
+    final updatedVideos = state.videos.map((v) {
+      if (v.video.id == videoId) {
+        return v.copyWith(
+          status: status,
+          progress: progress ?? v.progress,
+          errorMessage: errorMessage,
+        );
+      }
+      return v;
+    }).toList();
+
+    emit(state.copyWith(videos: updatedVideos));
   }
 
   /// 开始压缩指定视频
@@ -136,7 +292,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     print('==============================');
 
     // 更新视频状态为压缩中
-    final updatedVideos = state.taskInfo.videos.map((video) {
+    final updatedVideos = state.videos.map((video) {
       if (video.video.id == videoInfo.video.id) {
         return video.copyWith(
           status: VideoCompressionStatus.compressing,
@@ -146,38 +302,10 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       return video;
     }).toList();
 
-    final updatedTaskInfo = state.taskInfo.copyWith(videos: updatedVideos);
-    emit(state.copyWith(taskInfo: updatedTaskInfo));
+    emit(state.copyWith(videos: updatedVideos));
 
     // 使用 FFmpeg 开始真实压缩
     _runFfmpegForVideo(videoInfo);
-  }
-
-  /// （兼容保留）模拟压缩进度
-  void _startProgressSimulation(VideoCompressionInfo videoInfo) {
-    _progressTimer?.cancel();
-
-    // 根据视频大小估算压缩时间（模拟）
-    final estimatedDuration = _estimateCompressionDuration(videoInfo.video);
-    const updateInterval = Duration(milliseconds: 500);
-    final totalSteps = estimatedDuration.inMilliseconds ~/ updateInterval.inMilliseconds;
-    int currentStep = 0;
-
-    _progressTimer = Timer.periodic(updateInterval, (timer) {
-      currentStep++;
-      final progress = min(currentStep / totalSteps, 1.0);
-
-      // 计算剩余时间
-      final elapsed = DateTime.now().difference(_currentVideoStartTime!);
-      final remaining = progress > 0 ? Duration(milliseconds: ((elapsed.inMilliseconds / progress) - elapsed.inMilliseconds).round()) : Duration.zero;
-
-      _updateVideoProgress(videoInfo.video.id, progress, remaining.inSeconds);
-
-      if (progress >= 1.0) {
-        timer.cancel();
-        _completeVideoCompression(videoInfo);
-      }
-    });
   }
 
   /// 使用 FFmpegKit 压缩单个视频
@@ -209,7 +337,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           final ReturnCode? returnCode = await session.getReturnCode();
           if (ReturnCode.isSuccess(returnCode)) {
             final int compressedSize = await _readFileSize(outputPath);
-            final Duration elapsed = DateTime.now().difference(_currentVideoStartTime ?? DateTime.now());
+            final Duration elapsed = _currentVideoStartTime != null ? DateTime.now().difference(_currentVideoStartTime!) : Duration.zero;
 
             print('======== 压缩成功 ========');
             print('视频: ${videoInfo.video.title}');
@@ -240,7 +368,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
         },
         (log) {
           // FFmpeg 日志输出
-          final String logMessage = log.getMessage() ?? '';
+          final String logMessage = log.getMessage();
           final int logLevel = log.getLevel();
           final String levelStr = _getLogLevelString(logLevel);
           print('[FFmpeg $levelStr] $logMessage');
@@ -250,7 +378,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           final int timeMs = statistics.getTime();
           final double totalMs = max(videoInfo.video.duration * 1000.0, 1.0);
           final double progress = (timeMs / totalMs).clamp(0.0, 1.0);
-          final Duration elapsed = DateTime.now().difference(_currentVideoStartTime ?? DateTime.now());
+          final Duration elapsed = _currentVideoStartTime != null ? DateTime.now().difference(_currentVideoStartTime!) : Duration.zero;
           final Duration remaining = progress > 0 ? Duration(milliseconds: ((elapsed.inMilliseconds / progress) - elapsed.inMilliseconds).round()) : Duration.zero;
 
           // 详细的统计信息日志
@@ -328,7 +456,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   }
 
   void _markVideoCompleted(VideoCompressionInfo videoInfo, int compressedSize, String outputPath) {
-    final List<VideoCompressionInfo> updatedVideos = state.taskInfo.videos.map((video) {
+    final List<VideoCompressionInfo> updatedVideos = state.videos.map((video) {
       if (video.video.id == videoInfo.video.id) {
         return video.copyWith(
           status: VideoCompressionStatus.completed,
@@ -341,16 +469,11 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       return video;
     }).toList();
 
-    final double overallProgress = _calculateOverallProgress(updatedVideos);
-    final CompressionTaskInfo updatedTaskInfo = state.taskInfo.copyWith(
-      videos: updatedVideos,
-      overallProgress: overallProgress,
-    );
-    emit(state.copyWith(taskInfo: updatedTaskInfo));
+    emit(state.copyWith(videos: updatedVideos));
   }
 
   void _failCurrentVideo(VideoCompressionInfo videoInfo, String message) {
-    final List<VideoCompressionInfo> updatedVideos = state.taskInfo.videos.map((video) {
+    final List<VideoCompressionInfo> updatedVideos = state.videos.map((video) {
       if (video.video.id == videoInfo.video.id) {
         return video.copyWith(
           status: VideoCompressionStatus.error,
@@ -362,17 +485,12 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       return video;
     }).toList();
 
-    final double overallProgress = _calculateOverallProgress(updatedVideos);
-    final CompressionTaskInfo updatedTaskInfo = state.taskInfo.copyWith(
-      videos: updatedVideos,
-      overallProgress: overallProgress,
-    );
-    emit(state.copyWith(taskInfo: updatedTaskInfo));
+    emit(state.copyWith(videos: updatedVideos));
   }
 
   /// 更新视频压缩进度
   void _updateVideoProgress(String videoId, double progress, int remainingSeconds) {
-    final updatedVideos = state.taskInfo.videos.map((video) {
+    final updatedVideos = state.videos.map((video) {
       if (video.video.id == videoId) {
         return video.copyWith(
           progress: progress,
@@ -382,90 +500,41 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       return video;
     }).toList();
 
-    // 计算整体进度
-    final overallProgress = _calculateOverallProgress(updatedVideos);
-
-    final updatedTaskInfo = state.taskInfo.copyWith(
-      videos: updatedVideos,
-      overallProgress: overallProgress,
-    );
-
-    emit(state.copyWith(taskInfo: updatedTaskInfo));
+    emit(state.copyWith(videos: updatedVideos));
   }
 
-  /// 完成视频压缩
-  void _completeVideoCompression(VideoCompressionInfo videoInfo) {
-    // 估算压缩后的文件大小
-    final compressedSize = _estimateCompressedSize(videoInfo.video);
-
-    final updatedVideos = state.taskInfo.videos.map((video) {
-      if (video.video.id == videoInfo.video.id) {
-        return video.copyWith(
-          status: VideoCompressionStatus.completed,
-          progress: 1.0,
-          estimatedTimeRemaining: null,
-          compressedSize: compressedSize,
-          outputPath: '/path/to/compressed/${video.video.id}_compressed.mp4',
-        );
-      }
-      return video;
-    }).toList();
-
-    final overallProgress = _calculateOverallProgress(updatedVideos);
-
-    final updatedTaskInfo = state.taskInfo.copyWith(
-      videos: updatedVideos,
-      overallProgress: overallProgress,
-    );
-
-    emit(state.copyWith(taskInfo: updatedTaskInfo));
-
-    // 继续处理下一个视频
-    _processNextVideo();
-  }
-
-  /// 取消视频压缩
+  /// 取消视频（包括下载和压缩）
   void cancelVideo(String videoId) {
-    final video = state.taskInfo.videos.firstWhere((v) => v.video.id == videoId);
+    final video = state.videos.firstWhere((v) => v.video.id == videoId);
 
-    if (video.status == VideoCompressionStatus.compressing) {
-      // 如果是正在压缩的视频，停止当前压缩
+    if (video.status == VideoCompressionStatus.downloading) {
+      // 取消下载：移除任务引用（Future 会自然完成或失败）
+      _downloadTasks.remove(videoId);
+      print('[取消下载] ${video.video.title}');
+    } else if (video.status == VideoCompressionStatus.compressing) {
+      // 取消压缩
       _progressTimer?.cancel();
       if (_isRunningSession) {
-        // 取消所有进行中的会话（当前只有一个）
         FFmpegKit.cancel();
       }
+      print('[取消压缩] ${video.video.title}');
     }
 
-    final updatedVideos = state.taskInfo.videos.map((v) {
-      if (v.video.id == videoId) {
-        return v.copyWith(
-          status: VideoCompressionStatus.cancelled,
-          progress: 0.0,
-          estimatedTimeRemaining: null,
-        );
-      }
-      return v;
-    }).toList();
-
-    final overallProgress = _calculateOverallProgress(updatedVideos);
-
-    final updatedTaskInfo = state.taskInfo.copyWith(
-      videos: updatedVideos,
-      overallProgress: overallProgress,
+    _updateVideoStatus(
+      videoId,
+      VideoCompressionStatus.cancelled,
+      progress: 0.0,
     );
 
-    emit(state.copyWith(taskInfo: updatedTaskInfo));
-
-    // 如果取消的是正在压缩的视频，继续处理下一个
-    if (video.status == VideoCompressionStatus.compressing) {
+    // 如果取消的是正在处理的，继续下一个
+    if (video.status == VideoCompressionStatus.downloading || video.status == VideoCompressionStatus.compressing) {
       _processNextVideo();
     }
   }
 
   /// 重新压缩视频
   void retryVideo(String videoId) {
-    final updatedVideos = state.taskInfo.videos.map((video) {
+    final updatedVideos = state.videos.map((video) {
       if (video.video.id == videoId) {
         return video.copyWith(
           status: VideoCompressionStatus.waiting,
@@ -479,11 +548,10 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       return video;
     }).toList();
 
-    final updatedTaskInfo = state.taskInfo.copyWith(videos: updatedVideos);
-    emit(state.copyWith(taskInfo: updatedTaskInfo));
+    emit(state.copyWith(videos: updatedVideos));
 
     // 如果当前没有正在压缩的视频，立即开始处理
-    if (!updatedTaskInfo.hasActiveCompression) {
+    if (!state.hasActiveCompression) {
       _processNextVideo();
     }
   }
@@ -491,12 +559,17 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   /// 取消所有压缩
   void cancelAllCompression() {
     _progressTimer?.cancel();
+
+    // 取消所有下载
+    _downloadTasks.clear();
+
+    // 取消 FFmpeg
     if (_isRunningSession) {
       FFmpegKit.cancel();
     }
 
-    final updatedVideos = state.taskInfo.videos.map((video) {
-      if (video.status == VideoCompressionStatus.waiting || video.status == VideoCompressionStatus.compressing) {
+    final updatedVideos = state.videos.map((video) {
+      if (video.status == VideoCompressionStatus.waiting || video.status == VideoCompressionStatus.downloading || video.status == VideoCompressionStatus.compressing) {
         return video.copyWith(
           status: VideoCompressionStatus.cancelled,
           progress: 0.0,
@@ -506,71 +579,43 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       return video;
     }).toList();
 
-    final updatedTaskInfo = state.taskInfo.copyWith(
-      status: CompressionTaskStatus.cancelled,
-      videos: updatedVideos,
-      endTime: DateTime.now(),
-    );
-
-    emit(state.copyWith(taskInfo: updatedTaskInfo));
+    emit(state.copyWith(videos: updatedVideos));
   }
 
   /// 完成整个压缩任务
   void _completeTask() {
-    final endTime = DateTime.now();
-    final duration = state.taskInfo.startTime != null ? endTime.difference(state.taskInfo.startTime!) : Duration.zero;
+    final completedVideos = state.videos.where((v) => v.status == VideoCompressionStatus.completed).toList();
+    final failedVideos = state.videos.where((v) => v.status == VideoCompressionStatus.error).toList();
+    final cancelledVideos = state.videos.where((v) => v.status == VideoCompressionStatus.cancelled).toList();
 
-    final completedVideos = state.taskInfo.videos.where((v) => v.status == VideoCompressionStatus.completed).toList();
-    final failedVideos = state.taskInfo.videos.where((v) => v.status == VideoCompressionStatus.error).toList();
-    final cancelledVideos = state.taskInfo.videos.where((v) => v.status == VideoCompressionStatus.cancelled).toList();
-
-    final totalOriginalSize = state.taskInfo.videos.fold(0, (sum, v) => sum + v.video.sizeBytes);
+    final totalOriginalSize = state.videos.fold(0, (sum, v) => sum + v.video.sizeBytes);
     final totalCompressedSize = completedVideos.fold(0, (sum, v) => sum + (v.compressedSize ?? 0));
     final totalSavings = totalOriginalSize - totalCompressedSize;
 
     print('========== 压缩任务完成 ==========');
-    print('任务结束时间: $endTime');
-    print('总耗时: ${duration.inHours}小时${duration.inMinutes % 60}分${duration.inSeconds % 60}秒');
     print('成功视频: ${completedVideos.length}');
     print('失败视频: ${failedVideos.length}');
     print('取消视频: ${cancelledVideos.length}');
-    print('总视频数: ${state.taskInfo.videos.length}');
+    print('总视频数: ${state.videos.length}');
     print('原始总大小: ${_formatBytes(totalOriginalSize)}');
     if (totalCompressedSize > 0) {
       print('压缩后总大小: ${_formatBytes(totalCompressedSize)}');
       print('节省空间: ${_formatBytes(totalSavings)} (${((totalSavings / totalOriginalSize) * 100).toStringAsFixed(1)}%)');
     }
     print('=================================');
-
-    final updatedTaskInfo = state.taskInfo.copyWith(
-      status: CompressionTaskStatus.completed,
-      endTime: endTime,
-      overallProgress: 1.0,
-    );
-
-    emit(state.copyWith(taskInfo: updatedTaskInfo));
   }
 
   /// 调整视频在队列中的优先级
   void moveVideoInQueue(String videoId, int newIndex) {
-    final videos = List<VideoCompressionInfo>.from(state.taskInfo.videos);
+    final videos = List<VideoCompressionInfo>.from(state.videos);
     final videoIndex = videos.indexWhere((v) => v.video.id == videoId);
 
     if (videoIndex != -1 && newIndex != videoIndex) {
       final video = videos.removeAt(videoIndex);
       videos.insert(newIndex, video);
 
-      final updatedTaskInfo = state.taskInfo.copyWith(videos: videos);
-      emit(state.copyWith(taskInfo: updatedTaskInfo));
+      emit(state.copyWith(videos: videos));
     }
-  }
-
-  /// 估算压缩时长（模拟）
-  Duration _estimateCompressionDuration(VideoModel video) {
-    // 基于文件大小的简单估算：1GB大约需要2分钟
-    final sizeInGB = video.sizeBytes / (1024 * 1024 * 1024);
-    final minutes = (sizeInGB * 2).clamp(0.5, 10.0); // 最少30秒，最多10分钟
-    return Duration(milliseconds: (minutes * 60 * 1000).round());
   }
 
   /// 估算压缩后文件大小
@@ -583,30 +628,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       videoDuration: video.duration,
       originalBitrate: 5000, // 简化的默认值
     );
-  }
-
-  /// 计算整体进度
-  double _calculateOverallProgress(List<VideoCompressionInfo> videos) {
-    if (videos.isEmpty) return 0.0;
-
-    double totalProgress = 0.0;
-    for (final video in videos) {
-      switch (video.status) {
-        case VideoCompressionStatus.completed:
-          totalProgress += 1.0;
-          break;
-        case VideoCompressionStatus.compressing:
-          totalProgress += video.progress;
-          break;
-        case VideoCompressionStatus.waiting:
-        case VideoCompressionStatus.cancelled:
-        case VideoCompressionStatus.error:
-          totalProgress += 0.0;
-          break;
-      }
-    }
-
-    return totalProgress / videos.length;
   }
 
   /// 获取日志级别字符串

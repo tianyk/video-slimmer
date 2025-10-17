@@ -34,7 +34,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
       config: widget.compressionConfig,
     );
 
-    // 自动开始压缩
+    // 自动开始压缩（在当前帧绘制完成后回调，确保界面已建立再触发业务逻辑）
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _progressCubit.startCompression();
     });
@@ -60,7 +60,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
           actions: [
             BlocBuilder<CompressionProgressCubit, CompressionProgressState>(
               builder: (context, state) {
-                if (state.taskInfo.status == CompressionTaskStatus.inProgress) {
+                if (state.hasActiveCompression) {
                   return IconButton(
                     icon: const Icon(Icons.stop),
                     onPressed: () => _showCancelAllConfirmation(context),
@@ -77,7 +77,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
             // 主要内容区域
             BlocBuilder<CompressionProgressCubit, CompressionProgressState>(
               builder: (context, state) {
-                return _buildVideoList(state.taskInfo);
+                return _buildVideoList(state.videos);
               },
             ),
 
@@ -90,12 +90,12 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
   }
 
   /// 构建视频列表
-  Widget _buildVideoList(CompressionTaskInfo taskInfo) {
+  Widget _buildVideoList(List<VideoCompressionInfo> videos) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: taskInfo.videos.length,
+      itemCount: videos.length,
       itemBuilder: (context, index) {
-        final videoInfo = taskInfo.videos[index];
+        final videoInfo = videos[index];
         return _VideoProgressItem(
           key: ValueKey(videoInfo.video.id),
           videoInfo: videoInfo,
@@ -113,7 +113,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
       bottom: 32,
       child: BlocBuilder<CompressionProgressCubit, CompressionProgressState>(
         builder: (context, state) {
-          if (state.taskInfo.status == CompressionTaskStatus.completed) {
+          if (state.isAllProcessed && state.completedCount > 0) {
             return Container(
               height: 56,
               decoration: BoxDecoration(
@@ -142,7 +142,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
                     const Icon(Icons.check_circle),
                     const SizedBox(width: 8),
                     Text(
-                      '完成 (已节省 ${state.taskInfo.formattedTotalSavings})',
+                      '完成 (已节省 ${state.formattedTotalSavings})',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -157,22 +157,6 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
         },
       ),
     );
-  }
-
-  /// 获取状态图标
-  IconData _getStatusIcon(CompressionTaskStatus status) {
-    switch (status) {
-      case CompressionTaskStatus.preparing:
-        return Icons.hourglass_empty;
-      case CompressionTaskStatus.inProgress:
-        return Icons.play_circle;
-      case CompressionTaskStatus.paused:
-        return Icons.pause_circle;
-      case CompressionTaskStatus.completed:
-        return Icons.check_circle;
-      case CompressionTaskStatus.cancelled:
-        return Icons.cancel;
-    }
   }
 
   /// 处理视频操作
@@ -270,7 +254,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
   void _showExitConfirmation(BuildContext context) {
     final state = _progressCubit.state;
 
-    if (state.taskInfo.status == CompressionTaskStatus.inProgress) {
+    if (state.hasActiveCompression) {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -554,28 +538,6 @@ class _VideoProgressItem extends StatelessWidget {
     );
   }
 
-  /// 构建状态区域
-  Widget _buildStatusSection() {
-    return Row(
-      children: [
-        Icon(
-          _getStatusIcon(),
-          color: _getStatusColor(),
-          size: 16,
-        ),
-        const SizedBox(width: 6),
-        Text(
-          videoInfo.statusText,
-          style: TextStyle(
-            fontSize: 14,
-            color: _getStatusColor(),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
-
   /// 构建操作按钮
   Widget _buildActionButton() {
     return SizedBox(
@@ -605,10 +567,14 @@ class _VideoProgressItem extends StatelessWidget {
   /// 获取状态图标
   IconData _getStatusIcon() {
     switch (videoInfo.status) {
+      case VideoCompressionStatus.waitingDownload:
+        return Icons.more_horiz;
       case VideoCompressionStatus.waiting:
         return Icons.access_time;
+      case VideoCompressionStatus.downloading:
+        return Icons.cloud_download;
       case VideoCompressionStatus.compressing:
-        return Icons.play_circle;
+        return Icons.compress;
       case VideoCompressionStatus.completed:
         return Icons.check_circle;
       case VideoCompressionStatus.cancelled:
@@ -621,12 +587,16 @@ class _VideoProgressItem extends StatelessWidget {
   /// 获取状态颜色
   Color _getStatusColor() {
     switch (videoInfo.status) {
+      case VideoCompressionStatus.waitingDownload:
+        return AppTheme.prosperityLightGray;
       case VideoCompressionStatus.waiting:
         return AppTheme.prosperityLightGold;
+      case VideoCompressionStatus.downloading:
+        return Colors.blue;
       case VideoCompressionStatus.compressing:
         return AppTheme.prosperityGold;
       case VideoCompressionStatus.completed:
-        return AppTheme.prosperityGold;
+        return Colors.green;
       case VideoCompressionStatus.cancelled:
         return AppTheme.prosperityLightGray;
       case VideoCompressionStatus.error:
@@ -637,7 +607,9 @@ class _VideoProgressItem extends StatelessWidget {
   /// 获取按钮颜色
   Color _getButtonColor() {
     switch (videoInfo.status) {
+      case VideoCompressionStatus.waitingDownload:
       case VideoCompressionStatus.waiting:
+      case VideoCompressionStatus.downloading:
       case VideoCompressionStatus.compressing:
         return AppTheme.prosperityGold.withValues(alpha: 0.1);
       case VideoCompressionStatus.completed:
@@ -651,7 +623,9 @@ class _VideoProgressItem extends StatelessWidget {
   /// 获取按钮文字颜色
   Color _getButtonTextColor() {
     switch (videoInfo.status) {
+      case VideoCompressionStatus.waitingDownload:
       case VideoCompressionStatus.waiting:
+      case VideoCompressionStatus.downloading:
       case VideoCompressionStatus.compressing:
         return AppTheme.prosperityGold;
       case VideoCompressionStatus.completed:
@@ -664,7 +638,9 @@ class _VideoProgressItem extends StatelessWidget {
   /// 获取按钮点击事件
   VoidCallback? _getOnPressed() {
     switch (videoInfo.status) {
+      case VideoCompressionStatus.waitingDownload:
       case VideoCompressionStatus.waiting:
+      case VideoCompressionStatus.downloading:
       case VideoCompressionStatus.compressing:
         return () => onAction(VideoAction.cancel);
       case VideoCompressionStatus.completed:
