@@ -1,5 +1,3 @@
-import 'package:photo_manager/photo_manager.dart';
-
 import '../utils/duration_utils.dart';
 
 /// 视频数据模型 - 表示可压缩视频的核心信息
@@ -9,9 +7,6 @@ class VideoModel {
 
   /// 视频标题（文件名或用户设置的标题）
   final String title;
-
-  /// 本地文件路径
-  final String path;
 
   /// 视频时长（单位：秒）
   final double duration;
@@ -67,19 +62,13 @@ class VideoModel {
   /// HDR 视频通常使用 ITU_R_2020，而普通视频使用 ITU_R_709
   final String colorSpace;
 
-  /// 相册系统实体引用 - 用于获取缩略图等原生功能
-  final AssetEntity? assetEntity;
-
-  /// 是否在iCloud中（需要下载）
-  final bool isInCloud;
-
   /// 是否本地可用（已下载到设备）
   final bool isLocallyAvailable;
 
   const VideoModel({
     required this.id,
     required this.title,
-    required this.path,
+    // required this.path,
     required this.duration,
     required this.width,
     required this.height,
@@ -90,8 +79,6 @@ class VideoModel {
     this.isDolbyVision = false,
     this.hdrType = 'SDR',
     this.colorSpace = 'Unknown',
-    this.assetEntity,
-    this.isInCloud = false,
     this.isLocallyAvailable = true,
   });
 
@@ -171,9 +158,9 @@ class VideoModel {
 
   /// 获取储存状态描述
   String get storageStatus {
-    if (isInCloud && !isLocallyAvailable) {
+    if (!isLocallyAvailable) {
       return '☁️ iCloud中';
-    } else if (isInCloud && isLocallyAvailable) {
+    } else if (isLocallyAvailable) {
       return '📱 已下载';
     } else {
       return '📱 本地';
@@ -182,14 +169,13 @@ class VideoModel {
 
   /// 是否需要从iCloud下载
   bool get needsDownload {
-    return isInCloud && !isLocallyAvailable;
+    return !isLocallyAvailable;
   }
 
   /// 创建更新后的VideoModel副本
   VideoModel copyWith({
     String? id,
     String? title,
-    String? path,
     double? duration,
     int? width,
     int? height,
@@ -200,14 +186,12 @@ class VideoModel {
     bool? isDolbyVision,
     String? hdrType,
     String? colorSpace,
-    AssetEntity? assetEntity,
     bool? isInCloud,
     bool? isLocallyAvailable,
   }) {
     return VideoModel(
       id: id ?? this.id,
       title: title ?? this.title,
-      path: path ?? this.path,
       duration: duration ?? this.duration,
       width: width ?? this.width,
       height: height ?? this.height,
@@ -218,8 +202,6 @@ class VideoModel {
       isDolbyVision: isDolbyVision ?? this.isDolbyVision,
       hdrType: hdrType ?? this.hdrType,
       colorSpace: colorSpace ?? this.colorSpace,
-      assetEntity: assetEntity ?? this.assetEntity,
-      isInCloud: isInCloud ?? this.isInCloud,
       isLocallyAvailable: isLocallyAvailable ?? this.isLocallyAvailable,
     );
   }

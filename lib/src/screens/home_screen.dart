@@ -30,7 +30,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _videoDataCubit = VideoDataCubit();
     _videoSelectionCubit = VideoSelectionCubit();
     _videoFilterCubit = VideoFilterCubit();
-    _videoDataCubit.loadVideos();
+    // 加载第一页视频
+    _videoDataCubit.loadVideos(page: 0);
   }
 
   @override
@@ -251,13 +252,6 @@ class _HomeScreenState extends State<HomeScreen> {
               isDescending: currentState.sortDescending,
               onTap: (sortKey) => _handleSortSelection(modalContext, filterCubit, sortKey, currentState),
             ),
-            _SortOption(
-              title: '文件名称',
-              sortKey: 'title',
-              currentSort: currentState.sortBy,
-              isDescending: currentState.sortDescending,
-              onTap: (sortKey) => _handleSortSelection(modalContext, filterCubit, sortKey, currentState),
-            ),
             const SizedBox(height: 16),
           ],
         );
@@ -440,7 +434,7 @@ class _VideoItem extends StatelessWidget {
               child: Row(
                 children: [
                   // 缩略图
-                  VideoThumbnail(assetEntity: video.assetEntity),
+                  VideoThumbnail(id: video.id),
                   const SizedBox(width: 12),
                   // 视频信息
                   Expanded(
