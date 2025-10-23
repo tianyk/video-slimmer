@@ -5,7 +5,7 @@ import '../models/video_model.dart';
 
 /// 视频筛选和排序状态
 class VideoFilterState extends Equatable {
-  /// 排序方式：'date', 'size', 'title', 'duration'
+  /// 排序方式：'date', 'size', 'duration'
   final String sortBy;
 
   /// 是否降序排列
@@ -145,16 +145,6 @@ class VideoFilterCubit extends Cubit<VideoFilterState> {
             return '1080p';
           case '4k':
             return '4K';
-          case '24fps':
-            return '24帧';
-          case '30fps':
-            return '30帧';
-          case '60fps':
-            return '60帧';
-          case 'hdr':
-            return 'HDR';
-          case 'dolby_vision':
-            return '杜比视界';
           default:
             return tag;
         }
