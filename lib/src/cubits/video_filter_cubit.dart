@@ -1,5 +1,6 @@
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../models/video_model.dart';
 
 /// 视频筛选和排序状态
@@ -41,11 +42,6 @@ class VideoFilterState extends Equatable {
   List<VideoModel> applyFilterAndSort(List<VideoModel> videos) {
     List<VideoModel> result = List.from(videos);
 
-    // 应用搜索关键词筛选
-    if (searchKeyword != null && searchKeyword!.isNotEmpty) {
-      result = result.where((video) => video.title.toLowerCase().contains(searchKeyword!.toLowerCase())).toList();
-    }
-
     // 应用标签筛选
     if (selectedTags.isNotEmpty) {
       result = result.where((video) {
@@ -67,12 +63,6 @@ class VideoFilterState extends Equatable {
             case '60fps':
               if (video.frameRate >= 58 && video.frameRate <= 62) return true;
               break;
-            case 'hdr':
-              if (video.isHDR) return true;
-              break;
-            case 'dolby_vision':
-              if (video.isDolbyVision) return true;
-              break;
           }
         }
         return false; // 没有满足任何标签条件
@@ -88,9 +78,6 @@ class VideoFilterState extends Equatable {
           break;
         case 'duration':
           comparison = a.duration.compareTo(b.duration);
-          break;
-        case 'title':
-          comparison = a.title.toLowerCase().compareTo(b.title.toLowerCase());
           break;
         case 'date':
         default:

@@ -300,7 +300,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
     // TODO: 实现视频预览功能
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('预览 ${videoInfo.video.title}'),
+        content: Text('预览 ${videoInfo.video.id}'),
         backgroundColor: AppTheme.prosperityGold,
       ),
     );

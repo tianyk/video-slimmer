@@ -31,7 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _videoSelectionCubit = VideoSelectionCubit();
     _videoFilterCubit = VideoFilterCubit();
     // 加载第一页视频
-    _videoDataCubit.loadVideos(page: 0);
+    _videoDataCubit.loadVideos();
   }
 
   @override
@@ -500,7 +500,7 @@ class _VideoItem extends StatelessWidget {
                               ),
                             ),
                             // iCloud状态指示器
-                            if (video.isInCloud)
+                            if (video.isLocallyAvailable)
                               Padding(
                                 padding: const EdgeInsets.only(left: 8),
                                 child: _buildCloudStatusIndicator(video),
@@ -528,63 +528,12 @@ class _VideoItem extends StatelessWidget {
 
   /// 构建符合品牌色系的iCloud状态指示器
   Widget _buildCloudStatusIndicator(VideoModel video) {
-    if (video.needsDownload) {
-      // 需要下载 - 使用暗金色系表示需要关注
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        decoration: BoxDecoration(
-          color: AppTheme.prosperityDarkGold.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: AppTheme.prosperityDarkGold, width: 0.5),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.cloud_download,
-              size: 8,
-              color: AppTheme.prosperityDarkGold,
-            ),
-            const SizedBox(width: 2),
-            Text(
-              'iCloud',
-              style: TextStyle(
-                fontSize: 7,
-                fontWeight: FontWeight.w500,
-                color: AppTheme.prosperityDarkGold,
-              ),
-            ),
-          ],
-        ),
-      );
-    } else if (video.isInCloud && video.isLocallyAvailable) {
-      // 已下载 - 使用主金色表示正常状态
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        decoration: BoxDecoration(
-          color: AppTheme.prosperityGold.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: AppTheme.prosperityGold, width: 0.5),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.cloud_done,
-              size: 8,
-              color: AppTheme.prosperityGold,
-            ),
-            const SizedBox(width: 2),
-            Text(
-              '已下载',
-              style: TextStyle(
-                fontSize: 7,
-                fontWeight: FontWeight.w500,
-                color: AppTheme.prosperityGold,
-              ),
-            ),
-          ],
-        ),
+    if (!video.isLocallyAvailable) {
+      // iCloud中 - 使用主金色表示正常状态
+      return Icon(
+        Remix.cloud_fill,
+        size: 12,
+        color: AppTheme.prosperityGold,
       );
     } else {
       // 本地视频，不显示指示器
