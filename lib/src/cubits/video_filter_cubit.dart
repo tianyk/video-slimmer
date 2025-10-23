@@ -11,7 +11,7 @@ class VideoFilterState extends Equatable {
   /// 是否降序排列
   final bool sortDescending;
 
-  /// 选中的过滤标签：['1080p', '4k', '24fps', '30fps', '60fps', 'hdr', 'dolby_vision']
+  /// 选中的过滤标签：['1080p', '4k']
   final Set<String> selectedTags;
 
   /// 搜索关键词
@@ -53,15 +53,6 @@ class VideoFilterState extends Equatable {
               break;
             case '4k':
               if (video.width >= 2160 || video.height >= 2160) return true;
-              break;
-            case '24fps':
-              if (video.frameRate >= 23 && video.frameRate <= 25) return true;
-              break;
-            case '30fps':
-              if (video.frameRate >= 28 && video.frameRate <= 32) return true;
-              break;
-            case '60fps':
-              if (video.frameRate >= 58 && video.frameRate <= 62) return true;
               break;
           }
         }

@@ -163,16 +163,14 @@ class VideoDataCubit extends Cubit<VideoDataState> {
 
       for (final videoEntity in videoAssets) {
         final isLocallyAvailable = await videoEntity.isLocallyAvailable();
-        final basicInfo = await _getVideoMetadata(videoEntity.id);
+        final metadata = await _getVideoMetadata(videoEntity.id);
 
         videos.add(VideoModel(
           id: videoEntity.id,
           duration: videoEntity.duration.toDouble(),
           width: videoEntity.width,
           height: videoEntity.height,
-          sizeBytes: basicInfo?['fileSize'] ?? 0,
-          frameRate: basicInfo?['frameRate'] ?? 30.0,
-          isHDR: basicInfo?['isHDR'] ?? false,
+          sizeBytes: metadata?['fileSize'] ?? 0,
           creationDate: videoEntity.createDateTime,
           isLocallyAvailable: isLocallyAvailable,
         ));
@@ -199,7 +197,6 @@ class VideoDataCubit extends Cubit<VideoDataState> {
   /// - 使用 PHAssetResource 获取精确的文件大小
   /// - 不会触发 iCloud 下载，只获取元数据
   /// - 即使视频在 iCloud 中未下载，也能获取所有信息
-  /// - 比 getAssetCloudStatus 更轻量，只返回核心信息
   Future<Map<String, dynamic>?> _getVideoMetadata(String assetId) async {
     try {
       final result = await _platform.invokeMethod('getVideoMetadata', {

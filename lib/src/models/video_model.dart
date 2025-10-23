@@ -17,12 +17,6 @@ class VideoModel {
   /// 文件大小（单位：字节）
   final int sizeBytes;
 
-  /// 帧率（默认值30fps）
-  final double frameRate;
-
-  /// 是否为HDR视频
-  final bool isHDR;
-
   /// 创建时间
   final DateTime creationDate;
 
@@ -35,8 +29,6 @@ class VideoModel {
     required this.width,
     required this.height,
     required this.sizeBytes,
-    required this.frameRate,
-    required this.isHDR,
     required this.creationDate,
     this.isLocallyAvailable = true,
   });
@@ -55,23 +47,7 @@ class VideoModel {
     return DurationUtils.formatToClock(duration);
   }
 
-  /// 获取分辨率级别（4K/1080p/720p等）+帧率描述
-  String get resolutionAndFrameRate {
-    String resolutionText;
-    if (width >= 2160) {
-      resolutionText = '4K'; // iPhone 4K (2160×3840)
-    } else if (width >= 1920) {
-      resolutionText = '1080p'; // iPhone 1080p (1920×1080)
-    } else if (width >= 1280) {
-      resolutionText = '720p'; // iPhone 720p (1280×720)
-    } else {
-      resolutionText = '${width}p';
-    }
-
-    return '$resolutionText/${frameRate.round()}fps';
-  }
-
-  /// 获取完整的视频规格描述
+  /// 获取视频规格描述
   String get videoSpecification {
     String resolutionText;
     if (width >= 2160) {
@@ -94,8 +70,6 @@ class VideoModel {
     int? width,
     int? height,
     int? sizeBytes,
-    double? frameRate,
-    bool? isHDR,
     DateTime? creationDate,
     bool? isLocallyAvailable,
   }) {
@@ -105,8 +79,6 @@ class VideoModel {
       width: width ?? this.width,
       height: height ?? this.height,
       sizeBytes: sizeBytes ?? this.sizeBytes,
-      frameRate: frameRate ?? this.frameRate,
-      isHDR: isHDR ?? false,
       creationDate: creationDate ?? this.creationDate,
       isLocallyAvailable: isLocallyAvailable ?? this.isLocallyAvailable,
     );
