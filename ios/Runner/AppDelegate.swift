@@ -71,32 +71,19 @@ import Photos
       return
     }
     
-    // 获取 PHAsset 关联的资源列表
+    // 获取 PHAsset 关联的资源列表并查找文件大小
     let resources = PHAssetResource.assetResources(for: asset)
-    
-    // 遍历资源列表，查找视频资源并获取文件大小
-    for resource in resources {
-      if resource.type == .video {
-        // 尝试通过 KVC 获取文件大小
-        if let fileSize = resource.value(forKey: "fileSize") as? Int64 {
-          // 构建基本信息字典
-          let basicInfo: [String: Any] = [
-            "fileSize": fileSize,
-            "pixelWidth": asset.pixelWidth,
-            "pixelHeight": asset.pixelHeight,
-            "duration": asset.duration
-          ]
-          
-          result(basicInfo)
-          return
-        }
+    var fileSize: Int64 = 0
+    for resource in resources where resource.type == .video {
+      if let size = resource.value(forKey: "fileSize") as? Int64 {
+        fileSize = size
+        break
       }
     }
     
-    // 如果无法通过 PHAssetResource 获取文件大小，使用备用方案
-    // 仍然返回其他信息，但 fileSize 设为 0
+    // 构建基本信息字典
     let basicInfo: [String: Any] = [
-      "fileSize": Int64(0),
+      "fileSize": fileSize,
       "pixelWidth": asset.pixelWidth,
       "pixelHeight": asset.pixelHeight,
       "duration": asset.duration
