@@ -202,7 +202,7 @@ class VideoDataCubit extends Cubit<VideoDataState> {
   /// - 比 getAssetCloudStatus 更轻量，只返回核心信息
   Future<Map<String, dynamic>?> _getVideoMetadata(String assetId) async {
     try {
-      final result = await _platform.invokeMethod('_getVideoMetadata', {
+      final result = await _platform.invokeMethod('getVideoMetadata', {
         'assetId': assetId,
       });
 

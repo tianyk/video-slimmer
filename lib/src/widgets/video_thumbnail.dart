@@ -6,14 +6,16 @@ import 'package:remixicon/remixicon.dart';
 
 class VideoThumbnail extends StatelessWidget {
   final String id;
+  final int width;
+  final int height;
 
-  const VideoThumbnail({super.key, required this.id});
+  const VideoThumbnail({super.key, required this.id, this.width = 160, this.height = 120});
 
-  Future<Uint8List?> _getThumbnail(String id) async {
+  Future<Uint8List?> _getThumbnail() async {
     final assetEntity = await AssetEntity.fromId(id);
     if (assetEntity != null) {
       return await assetEntity.thumbnailDataWithSize(
-        const ThumbnailSize(160, 120),
+        ThumbnailSize(width, height),
       );
     }
     return null;
@@ -27,7 +29,7 @@ class VideoThumbnail extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: FutureBuilder<Uint8List?>(
-          future: _getThumbnail(id),
+          future: _getThumbnail(),
           builder: (context, snapshot) {
             if (snapshot.hasData && snapshot.data != null) {
               return Image.memory(
