@@ -1,4 +1,4 @@
-import '../utils/duration_utils.dart';
+import '../utils.dart';
 
 /// 视频数据模型 - 表示可压缩视频的核心信息
 class VideoModel {
@@ -44,7 +44,7 @@ class VideoModel {
   /// 格式化视频时长，根据时长自适应显示格式
   /// 小于1小时: mm:ss；≥1小时: hh:mm:ss
   String get formattedDuration {
-    return DurationUtils.formatToClock(duration);
+    return formatDurationToClock(duration);
   }
 
   /// 获取视频规格描述

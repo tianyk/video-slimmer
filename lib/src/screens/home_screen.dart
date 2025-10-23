@@ -8,7 +8,7 @@ import '../cubits/video_data_cubit.dart';
 import '../cubits/video_filter_cubit.dart';
 import '../cubits/video_selection_cubit.dart';
 import '../models/video_model.dart';
-import '../utils/date_time_utils.dart';
+import '../utils.dart';
 import '../widgets/video_thumbnail.dart';
 import 'compression_config_screen.dart';
 
@@ -264,67 +264,47 @@ class _HomeScreenState extends State<HomeScreen> {
 
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
-      builder: (modalContext) {
+      builder: (BuildContext modalContext) {
         return BlocProvider.value(
           value: filterCubit,
-          child: DraggableScrollableSheet(
-            initialChildSize: 0.6,
-            minChildSize: 0.3,
-            maxChildSize: 0.9,
-            expand: false,
-            builder: (context, scrollController) {
-              return BlocBuilder<VideoFilterCubit, VideoFilterState>(
-                builder: (context, filterState) {
-                  return Container(
-                    decoration: const BoxDecoration(
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                    ),
-                    child: Column(
+          child: BlocBuilder<VideoFilterCubit, VideoFilterState>(
+            builder: (context, filterState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 标题栏
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // 标题栏
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                '筛选标签',
-                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                              ),
-                              if (filterState.selectedTags.isNotEmpty)
-                                TextButton(
-                                  onPressed: () => filterCubit.clearAllTags(),
-                                  child: const Text('清除全部'),
-                                ),
-                            ],
-                          ),
+                        const Text(
+                          '筛选标签',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                         ),
-                        // 标签列表
-                        Expanded(
-                          child: ListView(
-                            controller: scrollController,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            children: [
-                              _FilterListTile(
-                                title: '1080p',
-                                tag: '1080p',
-                                isSelected: filterState.selectedTags.contains('1080p'),
-                                onTap: () => filterCubit.toggleTag('1080p'),
-                              ),
-                              _FilterListTile(
-                                title: '4K',
-                                tag: '4k',
-                                isSelected: filterState.selectedTags.contains('4k'),
-                                onTap: () => filterCubit.toggleTag('4k'),
-                              ),
-                            ],
+                        if (filterState.selectedTags.isNotEmpty)
+                          TextButton(
+                            onPressed: () => filterCubit.clearAllTags(),
+                            child: const Text('清除全部'),
                           ),
-                        ),
                       ],
                     ),
-                  );
-                },
+                  ),
+                  // 标签列表
+                  _FilterListTile(
+                    title: '1080p',
+                    tag: '1080p',
+                    isSelected: filterState.selectedTags.contains('1080p'),
+                    onTap: () => filterCubit.toggleTag('1080p'),
+                  ),
+                  _FilterListTile(
+                    title: '4K',
+                    tag: '4k',
+                    isSelected: filterState.selectedTags.contains('4k'),
+                    onTap: () => filterCubit.toggleTag('4k'),
+                  ),
+                  const SizedBox(height: 16),
+                ],
               );
             },
           ),
@@ -463,7 +443,7 @@ class _VideoItem extends StatelessWidget {
                             const SizedBox(width: 4),
                             Text(
                               // 视频创建时间，格式化显示
-                              DateTimeUtils.formatToFriendlyString(video.creationDate),
+                              formatDateToFriendlyString(video.creationDate),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[600],

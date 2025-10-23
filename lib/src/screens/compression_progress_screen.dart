@@ -6,7 +6,7 @@ import '../cubits/compression_progress_cubit.dart';
 import '../models/compression_model.dart';
 import '../models/compression_progress_model.dart';
 import '../models/video_model.dart';
-import '../utils/date_time_utils.dart';
+import '../utils.dart';
 
 class CompressionProgressScreen extends StatefulWidget {
   final List<VideoModel> selectedVideos;
@@ -408,7 +408,7 @@ class _VideoProgressItem extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           // 视频创建时间，格式化显示
-                          DateTimeUtils.formatToFriendlyString(videoInfo.video.creationDate),
+                          formatDateToFriendlyString(videoInfo.video.creationDate),
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[600],
