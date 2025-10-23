@@ -84,9 +84,7 @@ class VideoModel {
       resolutionText = '${width}p';
     }
 
-    final frameRateText = '${frameRate.round()}fps';
-
-    return '$resolutionText/$frameRateText';
+    return resolutionText;
   }
 
   /// 创建更新后的VideoModel副本
