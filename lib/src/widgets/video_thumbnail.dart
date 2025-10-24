@@ -9,34 +9,33 @@ class VideoThumbnail extends StatelessWidget {
   final int width;
   final int height;
 
-  const VideoThumbnail({super.key, required this.id, this.width = 160, this.height = 120});
+  const VideoThumbnail({super.key, required this.id, this.width = 80, this.height = 60});
 
-  Future<Uint8List?> _getThumbnail() async {
+  // 获取缩略图，使用2倍缩略图，提高清晰度
+  Future<Uint8List?> _getThumbnail({required String id, int scale = 2}) async {
+    print('getThumbnail: $id, scale: $scale');
     final assetEntity = await AssetEntity.fromId(id);
-    if (assetEntity != null) {
-      return await assetEntity.thumbnailDataWithSize(
-        ThumbnailSize(width, height),
-      );
-    }
-    return null;
+    return await assetEntity?.thumbnailDataWithSize(
+      ThumbnailSize(width * scale, height * scale),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 80,
-      height: 60,
+      width: width.toDouble(),
+      height: height.toDouble(),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: FutureBuilder<Uint8List?>(
-          future: _getThumbnail(),
+          future: _getThumbnail(id: id),
           builder: (context, snapshot) {
             if (snapshot.hasData && snapshot.data != null) {
               return Image.memory(
                 snapshot.data!,
                 fit: BoxFit.cover,
-                width: 80,
-                height: 60,
+                width: width.toDouble(),
+                height: height.toDouble(),
               );
             }
             return _buildPlaceholder();
