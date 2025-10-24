@@ -364,7 +364,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       // 压缩前：打印原视频元数据
       await _printVideoMetadata(inputPath, '原视频');
 
-      final String command = _buildFfmpegCommand(
+      final String command = await _buildFfmpegCommand(
         inputPath: inputPath,
         outputPath: outputPath,
         config: _compressionConfig!,
@@ -469,6 +469,34 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     final String fileName = '${uuid.v4()}${ext.isNotEmpty ? ext : '.mp4'}';
 
     return '${dir.path}/$fileName';
+  }
+
+  /// 检测原视频的编码格式
+  ///
+  /// 返回视频编码器名称，如 'hevc', 'h264', 'vp9' 等
+  Future<String?> _detectVideoCodec(String videoPath) async {
+    try {
+      final MediaInformationSession session = await FFprobeKit.getMediaInformation(videoPath);
+      final mediaInformation = session.getMediaInformation();
+
+      if (mediaInformation == null) {
+        return null;
+      }
+
+      // 查找视频流
+      final streams = mediaInformation.getStreams();
+      for (final stream in streams) {
+        final codecType = stream.getAllProperties()?['codec_type'];
+        if (codecType == 'video') {
+          return stream.getAllProperties()?['codec_name'];
+        }
+      }
+
+      return null;
+    } catch (e) {
+      print('⚠️  检测视频编码失败: $e');
+      return null;
+    }
   }
 
   /// 使用 FFprobe 打印视频元数据信息（调试用）
@@ -592,22 +620,49 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   /// - `-map 0`: 复制所有流（视频、音频、字幕、章节等）
   /// - `-map_metadata 0`: 复制所有元数据
   /// - `-movflags use_metadata_tags`: 保留 MP4 元数据标签
-  /// - `-tag:v hvc1`: 设置视频标签（iOS 兼容）
+  /// - 自动检测并使用原视频的编码格式（HEVC 保持 HEVC，H.264 保持 H.264）
   /// - 保留：GPS、拍摄时间、相机信息、方向、色彩空间等
-  String _buildFfmpegCommand({
+  Future<String> _buildFfmpegCommand({
     required String inputPath,
     required String outputPath,
     required CompressionConfig config,
-  }) {
-    // 视频编码参数（使用libx264 + CRF）
+  }) async {
+    // 视频编码参数
     final int crf = config.customCRF ?? 23;
     final int videoBitrate = config.customBitrate ?? 0; // 可选
     final bool keepFps = config.keepOriginalFrameRate;
     final double? customFps = config.customFrameRate;
     final int audioKbps = config.audioQuality;
 
+    // 检测原视频编码格式
+    final String? originalCodec = await _detectVideoCodec(inputPath);
+    print('[视频编码] 原始编码: $originalCodec');
+
+    // 根据原视频编码选择编码器
+    final String videoCodec;
+    final String videoTag;
+    // 是否是 HEVC 编码
+    final bool isHevc = originalCodec == 'hevc' || originalCodec == 'h265';
+
+    if (isHevc) {
+      // 原视频是 HEVC，保持 HEVC（支持 HDR）
+      videoCodec = 'libx265';
+      videoTag = 'hvc1'; // iOS HEVC 标签
+      print('[编码器] 使用 HEVC (libx265) 保留 HDR');
+    } else {
+      // 原视频是 H.264 或其他，使用 H.264（兼容性最好）
+      videoCodec = 'libx264';
+      videoTag = 'avc1'; // iOS H.264 标签
+      print('[编码器] 使用 H.264 (libx264)');
+    }
+
     final List<String> args = [];
-    args.addAll(['-y', '-hide_banner', '-i', _q(inputPath)]);
+    args.addAll(['-y', '-hide_banner']);
+
+    // ✅ 禁止自动旋转（保留原始方向元数据）
+    args.addAll(['-noautorotate']);
+
+    args.addAll(['-i', _q(inputPath)]);
 
     // ✅ 复制所有流（包括字幕、章节等）
     args.addAll(['-map', '0']);
@@ -618,12 +673,20 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     args.addAll(['-map_metadata:s:a', '0:s:a']); // 保留音频流元数据
 
     // 视频编码
-    args.addAll(['-c:v', 'libx264', '-preset', 'medium', '-crf', crf.toString()]);
+    args.addAll(['-c:v', videoCodec, '-preset', 'medium', '-crf', crf.toString()]);
 
-    // ✅ 保留色彩空间和色域（重要！影响相册显示）
-    args.addAll(['-colorspace', 'bt709']);
-    args.addAll(['-color_primaries', 'bt709']);
-    args.addAll(['-color_trc', 'bt709']);
+    // ✅ 色彩空间处理
+    if (isHevc) {
+      // HEVC：不强制转换色彩空间，保留原始 HDR/SDR
+      // FFmpeg 会自动保留原视频的色彩空间（bt2020/bt709）
+      print('[色彩空间] 保留原始色彩空间（HDR/SDR）');
+    } else {
+      // H.264：强制使用 bt709（SDR），因为 H.264 不支持 HDR
+      args.addAll(['-colorspace', 'bt709']);
+      args.addAll(['-color_primaries', 'bt709']);
+      args.addAll(['-color_trc', 'bt709']);
+      print('[色彩空间] 使用 bt709 (SDR)');
+    }
 
     if (videoBitrate > 0) {
       args.addAll(['-b:v', '${videoBitrate}k']);
@@ -639,9 +702,17 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     args.addAll(['-c:s', 'mov_text']);
 
     // ✅ iOS 兼容性优化
-    args.addAll(['-tag:v', 'avc1']); // H.264 标签
+    args.addAll(['-tag:v', videoTag]); // 视频标签（avc1 或 hvc1）
     args.addAll(['-movflags', 'use_metadata_tags+faststart']); // 元数据 + 流式播放
-    args.addAll(['-pix_fmt', 'yuv420p']); // iOS 兼容的像素格式
+
+    // 像素格式：HEVC 支持 10-bit，H.264 使用 8-bit
+    if (isHevc) {
+      // HEVC：保留原始像素格式（可能是 yuv420p10le for HDR）
+      // FFmpeg 会自动选择合适的像素格式
+    } else {
+      // H.264：使用 yuv420p (8-bit)
+      args.addAll(['-pix_fmt', 'yuv420p']);
+    }
 
     args.add(_q(outputPath));
 
