@@ -107,9 +107,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// 构建浮动按钮内容
   Widget _buildFloatingButtonContent() {
-    return BlocBuilder<VideoSelectionCubit, VideoSelectionState>(
+    return BlocBuilder<VideoSelectionCubit, Set<String>>(
       builder: (context, selectionState) {
-        if (selectionState.selectedCount > 0) {
+        if (selectionState.isNotEmpty) {
           return Container(
             height: 56,
             decoration: BoxDecoration(
@@ -138,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Icon(Icons.arrow_forward),
                   const SizedBox(width: 8),
                   Text(
-                    '下一步 (${selectionState.selectedCount})',
+                    '下一步 (${selectionState.length})',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -334,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (dataState is VideoDataLoaded) {
       // 获取选中的视频
-      final selectedVideos = dataState.videos.where((video) => selectionState.isSelected(video.id)).toList();
+      final selectedVideos = dataState.videos.where((video) => selectionState.contains(video.id)).toList();
 
       if (selectedVideos.isNotEmpty) {
         // 导航到压缩配置页面
@@ -366,11 +366,9 @@ class _VideoItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<VideoSelectionCubit, VideoSelectionState>(
-      // 只有这个视频的选择状态变化时才重建
-      buildWhen: (previous, current) => previous.isSelected(video.id) != current.isSelected(video.id),
-      builder: (context, selectionState) {
-        final isSelected = selectionState.isSelected(video.id);
+    return BlocBuilder<VideoSelectionCubit, Set<String>>(
+      builder: (context, selectedVideoIds) {
+        final isSelected = selectedVideoIds.contains(video.id);
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
