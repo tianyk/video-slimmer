@@ -13,7 +13,6 @@ class VideoThumbnail extends StatelessWidget {
 
   // 获取缩略图，使用2倍缩略图，提高清晰度
   Future<Uint8List?> _getThumbnail({required String id, int scale = 2}) async {
-    print('getThumbnail: $id, scale: $scale');
     final assetEntity = await AssetEntity.fromId(id);
     return await assetEntity?.thumbnailDataWithSize(
       ThumbnailSize(width * scale, height * scale),
