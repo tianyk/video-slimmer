@@ -1,3 +1,5 @@
+import '../utils.dart';
+
 class CompressionResult {
   final String inputPath;
   final String outputPath;
@@ -20,9 +22,8 @@ class CompressionResult {
   });
 
   int get spaceSavedBytes => originalSizeBytes - compressedSizeBytes;
-  
-  double get spaceSavedPercentage => 
-      originalSizeBytes > 0 ? (spaceSavedBytes / originalSizeBytes) * 100 : 0;
+
+  double get spaceSavedPercentage => originalSizeBytes > 0 ? (spaceSavedBytes / originalSizeBytes) * 100 : 0;
 
   String get formattedOriginalSize {
     return _formatBytes(originalSizeBytes);
@@ -36,12 +37,7 @@ class CompressionResult {
     return _formatBytes(spaceSavedBytes);
   }
 
-  static String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
-    return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
-  }
+  static String _formatBytes(int bytes) => formatFileSize(bytes);
 
   bool get isSuccess => status == 'completed';
   bool get isError => status == 'error';

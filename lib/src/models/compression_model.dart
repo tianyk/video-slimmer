@@ -1,3 +1,5 @@
+import '../utils.dart';
+
 /// 压缩配置模型 - 定义视频压缩的各种参数
 class CompressionConfig {
   /// 压缩预设类型
@@ -61,14 +63,12 @@ class CompressionConfig {
       customResolution: customResolution ?? this.customResolution,
       customCRF: customCRF ?? this.customCRF,
       customBitrate: customBitrate ?? this.customBitrate,
-      keepOriginalFrameRate:
-          keepOriginalFrameRate ?? this.keepOriginalFrameRate,
+      keepOriginalFrameRate: keepOriginalFrameRate ?? this.keepOriginalFrameRate,
       customFrameRate: customFrameRate ?? this.customFrameRate,
       keepOriginalAudio: keepOriginalAudio ?? this.keepOriginalAudio,
       audioQuality: audioQuality ?? this.audioQuality,
       estimatedSize: estimatedSize ?? this.estimatedSize,
-      estimatedCompressionRatio:
-          estimatedCompressionRatio ?? this.estimatedCompressionRatio,
+      estimatedCompressionRatio: estimatedCompressionRatio ?? this.estimatedCompressionRatio,
     );
   }
 
@@ -99,13 +99,7 @@ class CompressionConfig {
   /// 格式化预估大小显示
   String get formattedEstimatedSize {
     if (estimatedSize == null) return '计算中...';
-
-    final size = estimatedSize!;
-    if (size < 1024) return '$size B';
-    if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)} KB';
-    if (size < 1024 * 1024 * 1024)
-      return '${(size / 1024 / 1024).toStringAsFixed(1)} MB';
-    return '${(size / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
+    return formatFileSize(estimatedSize!);
   }
 
   /// 格式化压缩比例显示

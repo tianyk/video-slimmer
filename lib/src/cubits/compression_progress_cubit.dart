@@ -1,13 +1,20 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:equatable/equatable.dart';
+import 'package:path/path.dart' as path;
+import 'package:uuid/uuid.dart';
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_new/return_code.dart';
+import 'package:ffmpeg_kit_flutter_new/statistics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:photo_manager/photo_manager.dart';
 
 import '../models/compression_model.dart';
 import '../models/compression_progress_model.dart';
 import '../models/video_model.dart';
+import '../utils.dart';
 
 /// 压缩进度状态
 class CompressionProgressState extends Equatable {
@@ -235,7 +242,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   /// 处理队列中的下一个视频
   void _processNextVideo() {
-    final List<VideoCompressionInfo> readyVideos = state.videos.where((VideoCompressionInfo video) => video.status == VideoCompressionStatus.waiting && video.video.isLocallyAvailable).toList();
+    final List<VideoCompressionInfo> readyVideos = state.videos.where((VideoCompressionInfo video) => video.status == VideoCompressionStatus.waiting).toList();
 
     if (readyVideos.isEmpty) {
       // 检查是否还有下载任务
@@ -304,112 +311,202 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     _runFfmpegForVideo(videoInfo);
   }
 
-  /// 使用 FFmpegKit 压缩单个视频
-  Future<void> _runFfmpegForVideo(VideoCompressionInfo videoInfo) async {
-    // if (_compressionConfig == null) {
-    //   _failCurrentVideo(videoInfo, '无有效的压缩配置');
-    //   return;
-    // }
+  /// 从视频 ID 获取文件路径
+  ///
+  /// 使用 originFile 以保留完整的元数据信息：
+  /// - GPS 坐标（拍摄地点）
+  /// - 拍摄时间
+  /// - 相机信息
+  /// - EXIF 数据
+  ///
+  /// 注意：会将文件复制到应用临时目录
+  Future<String?> _getVideoFilePath(String videoId) async {
+    final assetEntity = await AssetEntity.fromId(videoId);
+    if (assetEntity == null) {
+      throw Exception('无法找到视频资源: $videoId');
+    }
 
-    // _isRunningSession = true;
+    // 检查是否本地可用
+    final isLocallyAvailable = await assetEntity.isLocallyAvailable();
+    if (!isLocallyAvailable) {
+      throw Exception('视频未下载到本地，无法压缩');
+    }
 
-    // try {
-    //   final String inputPath = videoInfo.video.path;
-    //   final String outputPath = await _buildOutputPath(videoInfo.video);
+    // 使用 originFile 获取包含完整元数据的文件
+    final file = await assetEntity.originFile;
+    if (file == null) {
+      throw Exception('无法获取视频文件');
+    }
 
-    //   final String command = _buildFfmpegCommand(
-    //     inputPath: inputPath,
-    //     outputPath: outputPath,
-    //     config: _compressionConfig!,
-    //   );
+    print('[文件信息] 路径: ${file.absolute.path}');
+    print('[文件信息] 大小: ${(await file.length() / 1024 / 1024).toStringAsFixed(2)} MB');
 
-    //   print('[FFmpeg 命令] $command');
+    // 打印元数据信息（调试用）
+    await _printVideoMetadata(assetEntity);
 
-    //   // 运行FFmpeg，并追踪进度
-    //   FFmpegKit.executeAsync(
-    //     command,
-    //     (session) async {
-    //       _isRunningSession = false;
-    //       final ReturnCode? returnCode = await session.getReturnCode();
-    //       if (ReturnCode.isSuccess(returnCode)) {
-    //         final int compressedSize = await _readFileSize(outputPath);
-    //         final Duration elapsed = _currentVideoStartTime != null ? DateTime.now().difference(_currentVideoStartTime!) : Duration.zero;
-
-    //         print('======== 压缩成功 ========');
-    //         print('视频: ${videoInfo.video.id}');
-    //         print('原始大小: ${videoInfo.video.fileSize}');
-    //         print('压缩后大小: ${_formatBytes(compressedSize)}');
-    //         print('压缩比: ${((videoInfo.video.sizeBytes - compressedSize) / videoInfo.video.sizeBytes * 100).toStringAsFixed(1)}%');
-    //         print('耗时: ${elapsed.inMinutes}分${elapsed.inSeconds % 60}秒');
-    //         print('输出路径: $outputPath');
-    //         print('=======================');
-
-    //         _markVideoCompleted(videoInfo, compressedSize, outputPath);
-    //         _processNextVideo();
-    //       } else if (ReturnCode.isCancel(returnCode)) {
-    //         print('[FFmpeg] 压缩被取消: ${videoInfo.video.id}');
-    //         // 已在取消逻辑里更新状态，这里确保队列继续
-    //         _processNextVideo();
-    //       } else {
-    //         final String logs = (await session.getAllLogsAsString()) ?? '未知错误';
-    //         print('======== 压缩失败 ========');
-    //         print('视频: ${videoInfo.video.id}');
-    //         print('返回码: ${returnCode?.getValue()}');
-    //         print('错误日志: $logs');
-    //         print('========================');
-
-    //         _failCurrentVideo(videoInfo, logs);
-    //         _processNextVideo();
-    //       }
-    //     },
-    //     (log) {
-    //       // FFmpeg 日志输出
-    //       final String logMessage = log.getMessage();
-    //       final int logLevel = log.getLevel();
-    //       final String levelStr = _getLogLevelString(logLevel);
-    //       print('[FFmpeg $levelStr] $logMessage');
-    //     },
-    //     (Statistics statistics) {
-    //       // 进度：统计的time单位为毫秒
-    //       final int timeMs = statistics.getTime();
-    //       final double totalMs = max(videoInfo.video.duration * 1000.0, 1.0);
-    //       final double progress = (timeMs / totalMs).clamp(0.0, 1.0);
-    //       final Duration elapsed = _currentVideoStartTime != null ? DateTime.now().difference(_currentVideoStartTime!) : Duration.zero;
-    //       final Duration remaining = progress > 0 ? Duration(milliseconds: ((elapsed.inMilliseconds / progress) - elapsed.inMilliseconds).round()) : Duration.zero;
-
-    //       // 详细的统计信息日志
-    //       final double speed = statistics.getSpeed();
-    //       final double bitrate = statistics.getBitrate();
-    //       final int frame = statistics.getVideoFrameNumber();
-    //       final double fps = statistics.getVideoFps();
-    //       final String size = statistics.getSize().toString();
-
-    //       print('[FFmpeg 统计] 进度: ${(progress * 100).toStringAsFixed(1)}% | '
-    //           '时间: ${(timeMs / 1000).toStringAsFixed(1)}s/${(totalMs / 1000).toStringAsFixed(1)}s | '
-    //           '帧数: $frame | '
-    //           '速度: ${speed.toStringAsFixed(2)}x | '
-    //           '码率: ${bitrate.toStringAsFixed(0)}kbps | '
-    //           '输出大小: $size | '
-    //           'FPS: ${fps.toStringAsFixed(1)} | '
-    //           '预计剩余: ${remaining.inMinutes}分${remaining.inSeconds % 60}秒');
-
-    //       _updateVideoProgress(videoInfo.video.id, progress, remaining.inSeconds);
-    //     },
-    //   );
-    // } catch (e) {
-    //   _isRunningSession = false;
-    //   _failCurrentVideo(videoInfo, e.toString());
-    //   _processNextVideo();
-    // }
+    return file.absolute.path;
   }
 
-  // Future<String> _buildOutputPath(VideoModel video) async {
-  //   final Directory dir = await getTemporaryDirectory();
-  //   final String baseName = p.basenameWithoutExtension(video.path);
-  //   final String fileName = '${baseName}_compressed.mp4';
-  //   return p.join(dir.path, fileName);
-  // }
+  /// 使用 FFmpegKit 压缩单个视频
+  Future<void> _runFfmpegForVideo(VideoCompressionInfo videoInfo) async {
+    if (_compressionConfig == null) {
+      _failCurrentVideo(videoInfo, '无有效的压缩配置');
+      return;
+    }
 
+    _isRunningSession = true;
+
+    try {
+      // 从 videoId 获取文件路径
+      final String? inputPath = await _getVideoFilePath(videoInfo.video.id);
+      if (inputPath == null) {
+        throw Exception('无法获取视频文件路径');
+      }
+
+      final String outputPath = await _buildOutputPath(inputPath);
+
+      final String command = _buildFfmpegCommand(
+        inputPath: inputPath,
+        outputPath: outputPath,
+        config: _compressionConfig!,
+      );
+
+      print('[FFmpeg 命令] $command');
+
+      // 运行FFmpeg，并追踪进度
+      FFmpegKit.executeAsync(
+        command,
+        (session) async {
+          _isRunningSession = false;
+          final ReturnCode? returnCode = await session.getReturnCode();
+          if (ReturnCode.isSuccess(returnCode)) {
+            final int compressedSize = await _readFileSize(outputPath);
+            final Duration elapsed = _currentVideoStartTime != null ? DateTime.now().difference(_currentVideoStartTime!) : Duration.zero;
+
+            print('======== 压缩成功 ========');
+            print('视频: ${videoInfo.video.id}');
+            print('原始大小: ${videoInfo.video.fileSize}');
+            print('压缩后大小: ${_formatBytes(compressedSize)}');
+            print('压缩比: ${((videoInfo.video.sizeBytes - compressedSize) / videoInfo.video.sizeBytes * 100).toStringAsFixed(1)}%');
+            print('耗时: ${elapsed.inMinutes}分${elapsed.inSeconds % 60}秒');
+            print('输出路径: $outputPath');
+            print('=======================');
+
+            _markVideoCompleted(videoInfo, compressedSize, outputPath);
+            _processNextVideo();
+          } else if (ReturnCode.isCancel(returnCode)) {
+            print('[FFmpeg] 压缩被取消: ${videoInfo.video.id}');
+            // 已在取消逻辑里更新状态，这里确保队列继续
+            _processNextVideo();
+          } else {
+            final String logs = (await session.getAllLogsAsString()) ?? '未知错误';
+            print('======== 压缩失败 ========');
+            print('视频: ${videoInfo.video.id}');
+            print('返回码: ${returnCode?.getValue()}');
+            print('错误日志: $logs');
+            print('========================');
+
+            _failCurrentVideo(videoInfo, logs);
+            _processNextVideo();
+          }
+        },
+        (log) {
+          // FFmpeg 日志输出
+          final String logMessage = log.getMessage();
+          final int logLevel = log.getLevel();
+          final String levelStr = _getLogLevelString(logLevel);
+          print('[FFmpeg $levelStr] $logMessage');
+        },
+        (Statistics statistics) {
+          // 进度：统计的time单位为毫秒
+          final int timeMs = statistics.getTime();
+          final double totalMs = max(videoInfo.video.duration * 1000.0, 1.0);
+          final double progress = (timeMs / totalMs).clamp(0.0, 1.0);
+          final Duration elapsed = _currentVideoStartTime != null ? DateTime.now().difference(_currentVideoStartTime!) : Duration.zero;
+          final Duration remaining = progress > 0 ? Duration(milliseconds: ((elapsed.inMilliseconds / progress) - elapsed.inMilliseconds).round()) : Duration.zero;
+
+          // 详细的统计信息日志
+          final double speed = statistics.getSpeed();
+          final double bitrate = statistics.getBitrate();
+          final int frame = statistics.getVideoFrameNumber();
+          final double fps = statistics.getVideoFps();
+          final String size = statistics.getSize().toString();
+
+          print('[FFmpeg 统计] 进度: ${(progress * 100).toStringAsFixed(1)}% | '
+              '时间: ${(timeMs / 1000).toStringAsFixed(1)}s/${(totalMs / 1000).toStringAsFixed(1)}s | '
+              '帧数: $frame | '
+              '速度: ${speed.toStringAsFixed(2)}x | '
+              '码率: ${bitrate.toStringAsFixed(0)}kbps | '
+              '输出大小: $size | '
+              'FPS: ${fps.toStringAsFixed(1)} | '
+              '预计剩余: ${remaining.inMinutes}分${remaining.inSeconds % 60}秒');
+
+          _updateVideoProgress(videoInfo.video.id, progress, remaining.inSeconds);
+        },
+      );
+    } catch (e) {
+      _isRunningSession = false;
+      _failCurrentVideo(videoInfo, e.toString());
+      _processNextVideo();
+    }
+  }
+
+  /// 构建输出文件路径
+  ///
+  /// 使用 UUID 生成唯一文件名，保留原视频的文件扩展名。
+  /// 例如：
+  /// - 原视频：'/path/to/IMG_1234.MOV' → '/tmp/xxx/a3f2b1c4-5d6e-7f8a-9b0c-1d2e3f4a5b6c.MOV'
+  /// - 原视频：'/path/to/video.mp4' → '/tmp/xxx/b4c3d2e1-6f7a-8b9c-0d1e-2f3a4b5c6d7e.mp4'
+  Future<String> _buildOutputPath(String inputPath) async {
+    final Directory dir = await Directory.systemTemp.createTemp('video_compression_');
+
+    // 使用 path 包提取扩展名（包含点号，如 '.mov'）
+    String ext = path.extension(inputPath);
+    // 使用 UUID 生成唯一文件名，保留原扩展名
+    const uuid = Uuid();
+    final String fileName = '${uuid.v4()}${ext.isNotEmpty ? ext : '.mp4'}';
+
+    return '${dir.path}/$fileName';
+  }
+
+  /// 打印视频元数据信息（调试用）
+  Future<void> _printVideoMetadata(AssetEntity assetEntity) async {
+    print('\n========== 📹 视频元数据 ==========');
+
+    // 基本信息
+    print('📄 文件名: ${assetEntity.title}');
+    print('📅 拍摄时间: ${assetEntity.createDateTime}');
+    print('📅 修改时间: ${assetEntity.modifiedDateTime}');
+    print('⏱️  时长: ${assetEntity.duration} 秒');
+    print('📐 分辨率: ${assetEntity.width} × ${assetEntity.height}');
+
+    // GPS 信息
+    final latLng = await assetEntity.latlngAsync();
+    if (latLng != null) {
+      print('📍 GPS 坐标:');
+      print('   纬度: ${latLng.latitude}°');
+      print('   经度: ${latLng.longitude}°');
+    } else {
+      print('📍 GPS 坐标: 无');
+    }
+
+    // 方向信息
+    print('🧭 方向: ${assetEntity.orientation}°');
+
+    // 文件路径
+    print('📂 相对路径: ${assetEntity.relativePath ?? "无"}');
+
+    print('===================================\n');
+  }
+
+  /// 构建 FFmpeg 压缩命令
+  ///
+  /// 保留完整元数据和流信息，确保保存回相册后显示正常：
+  /// - `-map 0`: 复制所有流（视频、音频、字幕、章节等）
+  /// - `-map_metadata 0`: 复制所有元数据
+  /// - `-movflags use_metadata_tags`: 保留 MP4 元数据标签
+  /// - `-tag:v hvc1`: 设置视频标签（iOS 兼容）
+  /// - 保留：GPS、拍摄时间、相机信息、方向、色彩空间等
   String _buildFfmpegCommand({
     required String inputPath,
     required String outputPath,
@@ -424,15 +521,41 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
     final List<String> args = [];
     args.addAll(['-y', '-hide_banner', '-i', _q(inputPath)]);
+
+    // ✅ 复制所有流（包括字幕、章节等）
+    args.addAll(['-map', '0']);
+
+    // ✅ 保留所有元数据
+    args.addAll(['-map_metadata', '0']);
+    args.addAll(['-map_metadata:s:v', '0:s:v']); // 保留视频流元数据
+    args.addAll(['-map_metadata:s:a', '0:s:a']); // 保留音频流元数据
+
+    // 视频编码
     args.addAll(['-c:v', 'libx264', '-preset', 'medium', '-crf', crf.toString()]);
+
+    // ✅ 保留色彩空间和色域（重要！影响相册显示）
+    args.addAll(['-colorspace', 'bt709']);
+    args.addAll(['-color_primaries', 'bt709']);
+    args.addAll(['-color_trc', 'bt709']);
+
     if (videoBitrate > 0) {
       args.addAll(['-b:v', '${videoBitrate}k']);
     }
     if (!keepFps && customFps != null && customFps > 0) {
       args.addAll(['-r', customFps.toStringAsFixed(0)]);
     }
+
+    // 音频编码
     args.addAll(['-c:a', 'aac', '-b:a', '${audioKbps}k', '-ac', '2']);
-    args.addAll(['-movflags', '+faststart']);
+
+    // ✅ 保留字幕流（如果有）
+    args.addAll(['-c:s', 'mov_text']);
+
+    // ✅ iOS 兼容性优化
+    args.addAll(['-tag:v', 'avc1']); // H.264 标签
+    args.addAll(['-movflags', 'use_metadata_tags+faststart']); // 元数据 + 流式播放
+    args.addAll(['-pix_fmt', 'yuv420p']); // iOS 兼容的像素格式
+
     args.add(_q(outputPath));
 
     return args.join(' ');
@@ -614,18 +737,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     }
   }
 
-  /// 估算压缩后文件大小
-  int _estimateCompressedSize(VideoModel video) {
-    if (_compressionConfig == null) return video.sizeBytes;
-
-    return CompressionPresetConfig.estimateCompressedSize(
-      originalSize: video.sizeBytes,
-      config: _compressionConfig!,
-      videoDuration: video.duration,
-      originalBitrate: 5000, // 简化的默认值
-    );
-  }
-
   /// 获取日志级别字符串
   String _getLogLevelString(int level) {
     // FFmpeg 日志级别定义
@@ -654,12 +765,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   }
 
   /// 格式化字节大小
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
-    return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
-  }
+  String _formatBytes(int bytes) => formatFileSize(bytes);
 
   /// 获取压缩预设显示名称
   String _getPresetDisplayName(CompressionPreset preset) {

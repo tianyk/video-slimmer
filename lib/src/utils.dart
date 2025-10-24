@@ -29,6 +29,24 @@ String formatDateToFriendlyString(DateTime date) {
   return '${date.year}年${date.month}月';
 }
 
+/// 将文件大小（字节）格式化为友好的字符串
+///
+/// 自动选择合适的单位：
+/// - 小于 1KB：返回 "xxx B"
+/// - 小于 1MB：返回 "xxx.x KB"
+/// - 小于 1GB：返回 "xxx.x MB"
+/// - 大于等于 1GB：返回 "xxx.x GB"
+///
+/// [bytes] 文件大小（单位：字节）
+String formatFileSize(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  if (bytes < 1024 * 1024 * 1024) {
+    return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+  }
+  return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
+}
+
 /// 将时长（秒）格式化为时钟格式字符串
 ///
 /// 根据时长自动选择合适的格式：

@@ -1,7 +1,9 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+
 import '../models/compression_model.dart';
 import '../models/video_model.dart';
+import '../utils.dart';
 
 /// 压缩配置状态
 class CompressionState extends Equatable {
@@ -43,8 +45,7 @@ class CompressionState extends Equatable {
     return CompressionState(
       config: config ?? this.config,
       selectedVideos: selectedVideos ?? this.selectedVideos,
-      isCalculatingEstimate:
-          isCalculatingEstimate ?? this.isCalculatingEstimate,
+      isCalculatingEstimate: isCalculatingEstimate ?? this.isCalculatingEstimate,
       totalOriginalSize: totalOriginalSize ?? this.totalOriginalSize,
       totalEstimatedSize: totalEstimatedSize ?? this.totalEstimatedSize,
       estimatedSavings: estimatedSavings ?? this.estimatedSavings,
@@ -67,35 +68,19 @@ class CompressionState extends Equatable {
   String get formattedEstimatedSize {
     if (isCalculatingEstimate) return '计算中...';
     if (totalEstimatedSize == null) return '未知';
-
-    final size = totalEstimatedSize!;
-    if (size < 1024) return '$size B';
-    if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)} KB';
-    if (size < 1024 * 1024 * 1024) {
-      return '${(size / 1024 / 1024).toStringAsFixed(1)} MB';
-    }
-    return '${(size / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
+    return formatFileSize(totalEstimatedSize!);
   }
 
   /// 格式化节省空间显示
   String get formattedSavings {
     if (isCalculatingEstimate) return '计算中...';
     if (estimatedSavings == null) return '未知';
-
-    final size = estimatedSavings!;
-    if (size < 1024) return '$size B';
-    if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)} KB';
-    if (size < 1024 * 1024 * 1024) {
-      return '${(size / 1024 / 1024).toStringAsFixed(1)} MB';
-    }
-    return '${(size / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
+    return formatFileSize(estimatedSavings!);
   }
 
   /// 压缩比例百分比
   String get compressionPercentage {
-    if (isCalculatingEstimate ||
-        totalEstimatedSize == null ||
-        totalOriginalSize == 0) {
+    if (isCalculatingEstimate || totalEstimatedSize == null || totalOriginalSize == 0) {
       return '计算中...';
     }
 
@@ -125,8 +110,7 @@ class CompressionCubit extends Cubit<CompressionState> {
 
   /// 初始化选中的视频
   void initializeWithVideos(List<VideoModel> videos) {
-    final totalSize =
-        videos.fold<int>(0, (sum, video) => sum + video.sizeBytes);
+    final totalSize = videos.fold<int>(0, (sum, video) => sum + video.sizeBytes);
 
     emit(state.copyWith(
       selectedVideos: videos,
@@ -202,9 +186,7 @@ class CompressionCubit extends Cubit<CompressionState> {
         'crf': state.config.customCRF,
         'bitrate': state.config.customBitrate,
         'resolution': state.config.customResolution?.name,
-        'frameRate': state.config.keepOriginalFrameRate
-            ? null
-            : state.config.customFrameRate,
+        'frameRate': state.config.keepOriginalFrameRate ? null : state.config.customFrameRate,
         'audioQuality': state.config.audioQuality,
         'keepOriginalAudio': state.config.keepOriginalAudio,
       },

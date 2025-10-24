@@ -34,12 +34,7 @@ class VideoModel {
   });
 
   /// 文件大小格式化显示（自动转换为B/KB/MB/GB）
-  String get fileSize {
-    if (sizeBytes < 1024) return '$sizeBytes B';
-    if (sizeBytes < 1024 * 1024) return '${(sizeBytes / 1024).toStringAsFixed(1)} KB';
-    if (sizeBytes < 1024 * 1024 * 1024) return '${(sizeBytes / 1024 / 1024).toStringAsFixed(1)} MB';
-    return '${(sizeBytes / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
-  }
+  String get fileSize => formatFileSize(sizeBytes);
 
   /// 格式化视频时长，根据时长自适应显示格式
   /// 小于1小时: mm:ss；≥1小时: hh:mm:ss

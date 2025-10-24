@@ -25,6 +25,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   remixicon: ^1.4.1
   ffmpeg_kit_flutter_new: ^3.2.0
+  uuid: ^4.5.1
 
 dev_dependencies:
   flutter_test:

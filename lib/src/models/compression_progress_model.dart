@@ -1,4 +1,6 @@
 import 'package:equatable/equatable.dart';
+
+import '../utils.dart';
 import 'video_model.dart';
 
 /// 视频压缩状态枚举
@@ -178,14 +180,7 @@ class VideoCompressionInfo extends Equatable {
   /// 格式化压缩后大小显示
   String get formattedCompressedSize {
     if (compressedSize == null) return '';
-
-    final size = compressedSize!;
-    if (size < 1024) return '$size B';
-    if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)} KB';
-    if (size < 1024 * 1024 * 1024) {
-      return '${(size / 1024 / 1024).toStringAsFixed(1)} MB';
-    }
-    return '${(size / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
+    return formatFileSize(compressedSize!);
   }
 
   @override
