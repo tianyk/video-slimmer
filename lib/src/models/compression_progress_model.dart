@@ -188,14 +188,6 @@ class VideoCompressionInfo extends Equatable {
     return '${(size / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
   }
 
-  /// 计算压缩比例
-  String get compressionRatio {
-    if (compressedSize == null || video.sizeBytes == 0) return '';
-
-    final ratio = (video.sizeBytes - compressedSize!) / video.sizeBytes;
-    return '${(ratio * 100).toStringAsFixed(0)}%';
-  }
-
   @override
   List<Object?> get props => [
         video,

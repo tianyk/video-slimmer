@@ -361,29 +361,44 @@ class _VideoProgressItem extends StatelessWidget {
                       // 状态信息
                       Row(
                         children: [
-                          // 状态信息
-                          Icon(
-                            _getStatusIcon(videoInfo),
-                            color: _getStatusColor(videoInfo),
-                            size: 16,
-                          ),
-                          const SizedBox(width: 4),
+                          // 视频文件大小，格式化显示
                           Text(
-                            videoInfo.statusText,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: _getStatusColor(videoInfo),
-                              fontWeight: FontWeight.w500,
+                            videoInfo.video.fileSize,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.prosperityLightGold,
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          if (videoInfo.compressedSize != null) ...[
+                            const Text(
+                              ' 压缩后：',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppTheme.prosperityLightGray,
+                              ),
+                            ),
+                            Text(
+                              videoInfo.formattedCompressedSize,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppTheme.prosperityGold,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          // 视频时长，格式化显示
                           Icon(
                             Icons.access_time,
                             size: 12,
                             color: Colors.grey[600],
                           ),
                           const SizedBox(width: 4),
-                          // 视频时长，格式化显示
                           Text(
                             videoInfo.video.formattedDuration,
                             style: TextStyle(
@@ -392,6 +407,7 @@ class _VideoProgressItem extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 12),
+                          // 视频创建时间，格式化显示
                           Icon(
                             Icons.calendar_today,
                             size: 12,
@@ -406,60 +422,6 @@ class _VideoProgressItem extends StatelessWidget {
                               color: Colors.grey[600],
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Text(
-                            videoInfo.video.fileSize,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.prosperityLightGold,
-                            ),
-                          ),
-                          if (videoInfo.compressedSize != null) ...[
-                            const Text(
-                              ' → ',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: AppTheme.prosperityLightGray,
-                              ),
-                            ),
-                            Text(
-                              videoInfo.formattedCompressedSize,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: AppTheme.prosperityGold,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            if (videoInfo.compressionRatio.isNotEmpty) ...[
-                              const Text(
-                                ' (-',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: AppTheme.prosperityLightGray,
-                                ),
-                              ),
-                              Text(
-                                videoInfo.compressionRatio,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: AppTheme.prosperityGold,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const Text(
-                                ')',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: AppTheme.prosperityLightGray,
-                                ),
-                              ),
-                            ],
-                          ],
                         ],
                       ),
                     ],
@@ -555,26 +517,6 @@ class _VideoProgressItem extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  /// 获取状态图标
-  IconData _getStatusIcon(VideoCompressionInfo videoInfo) {
-    switch (videoInfo.status) {
-      case VideoCompressionStatus.waitingDownload:
-        return Icons.more_horiz;
-      case VideoCompressionStatus.waiting:
-        return Icons.access_time;
-      case VideoCompressionStatus.downloading:
-        return Icons.cloud_download;
-      case VideoCompressionStatus.compressing:
-        return Icons.compress;
-      case VideoCompressionStatus.completed:
-        return Icons.check_circle;
-      case VideoCompressionStatus.cancelled:
-        return Icons.cancel;
-      case VideoCompressionStatus.error:
-        return Icons.error;
-    }
   }
 
   /// 获取状态颜色
