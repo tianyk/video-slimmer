@@ -333,152 +333,151 @@ class _VideoProgressItem extends StatelessWidget {
 
   /// 构建内容
   Widget _buildContent(VideoCompressionInfo videoInfo) {
-    return Container(
+    return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.prosperityGray,
+      elevation: 2,
+      color: AppTheme.prosperityGray,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _getStatusColor(videoInfo).withValues(alpha: 0.3),
-          width: 1,
-        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 视频信息行
-          Row(
-            children: [
-              // 状态图标
-              VideoThumbnail(id: videoInfo.video.id),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 视频信息行
+            Row(
+              children: [
+                // 状态图标
+                VideoThumbnail(id: videoInfo.video.id),
 
-              const SizedBox(width: 12),
+                const SizedBox(width: 12),
 
-              // 视频基本信息
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 状态信息
-                    Row(
-                      children: [
-                        // 状态信息
-                        Icon(
-                          _getStatusIcon(videoInfo),
-                          color: _getStatusColor(videoInfo),
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          videoInfo.statusText,
-                          style: TextStyle(
-                            fontSize: 14,
+                // 视频基本信息
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 状态信息
+                      Row(
+                        children: [
+                          // 状态信息
+                          Icon(
+                            _getStatusIcon(videoInfo),
                             color: _getStatusColor(videoInfo),
-                            fontWeight: FontWeight.w500,
+                            size: 16,
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.access_time,
-                          size: 12,
-                          color: Colors.grey[600],
-                        ),
-                        const SizedBox(width: 4),
-                        // 视频时长，格式化显示
-                        Text(
-                          videoInfo.video.formattedDuration,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.calendar_today,
-                          size: 12,
-                          color: Colors.grey[600],
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          // 视频创建时间，格式化显示
-                          formatDateToFriendlyString(videoInfo.video.creationDate),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          videoInfo.video.fileSize,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.prosperityLightGold,
-                          ),
-                        ),
-                        if (videoInfo.compressedSize != null) ...[
-                          const Text(
-                            ' → ',
+                          const SizedBox(width: 4),
+                          Text(
+                            videoInfo.statusText,
                             style: TextStyle(
                               fontSize: 14,
-                              color: AppTheme.prosperityLightGray,
-                            ),
-                          ),
-                          Text(
-                            videoInfo.formattedCompressedSize,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: AppTheme.prosperityGold,
+                              color: _getStatusColor(videoInfo),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          if (videoInfo.compressionRatio.isNotEmpty) ...[
+                          const SizedBox(width: 12),
+                          Icon(
+                            Icons.access_time,
+                            size: 12,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          // 视频时长，格式化显示
+                          Text(
+                            videoInfo.video.formattedDuration,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(
+                            Icons.calendar_today,
+                            size: 12,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            // 视频创建时间，格式化显示
+                            formatDateToFriendlyString(videoInfo.video.creationDate),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Text(
+                            videoInfo.video.fileSize,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.prosperityLightGold,
+                            ),
+                          ),
+                          if (videoInfo.compressedSize != null) ...[
                             const Text(
-                              ' (-',
+                              ' → ',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: AppTheme.prosperityLightGray,
                               ),
                             ),
                             Text(
-                              videoInfo.compressionRatio,
+                              videoInfo.formattedCompressedSize,
                               style: const TextStyle(
                                 fontSize: 14,
                                 color: AppTheme.prosperityGold,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            const Text(
-                              ')',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: AppTheme.prosperityLightGray,
+                            if (videoInfo.compressionRatio.isNotEmpty) ...[
+                              const Text(
+                                ' (-',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppTheme.prosperityLightGray,
+                                ),
                               ),
-                            ),
+                              Text(
+                                videoInfo.compressionRatio,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: AppTheme.prosperityGold,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const Text(
+                                ')',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppTheme.prosperityLightGray,
+                                ),
+                              ),
+                            ],
                           ],
                         ],
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
 
-              // 操作按钮
-              _buildActionButton(videoInfo),
+                // 操作按钮
+                _buildActionButton(videoInfo),
+              ],
+            ),
+
+            // 进度信息
+            if (videoInfo.status == VideoCompressionStatus.compressing || (videoInfo.status == VideoCompressionStatus.completed && videoInfo.progress > 0)) ...[
+              const SizedBox(height: 12),
+              _buildProgressSection(videoInfo),
             ],
-          ),
-
-          // 进度信息
-          if (videoInfo.status == VideoCompressionStatus.compressing || (videoInfo.status == VideoCompressionStatus.completed && videoInfo.progress > 0)) ...[
-            const SizedBox(height: 12),
-            _buildProgressSection(videoInfo),
           ],
-        ],
+        ),
       ),
     );
   }
