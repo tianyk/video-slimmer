@@ -223,17 +223,13 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             // 标题栏
-            const SizedBox(
+            Container(
               height: 56,
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '排序方式',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                ),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              alignment: Alignment.centerLeft,
+              child: const Text(
+                '排序方式',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
             ),
             // 排序选项
@@ -279,24 +275,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // 标题栏
-                  SizedBox(
+                  Container(
                     height: 56,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            '筛选标签',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          '筛选标签',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                        ),
+                        if (filterState.selectedTags.isNotEmpty)
+                          TextButton(
+                            onPressed: () => filterCubit.clearAllTags(),
+                            child: const Text('清除全部'),
                           ),
-                          if (filterState.selectedTags.isNotEmpty)
-                            TextButton(
-                              onPressed: () => filterCubit.clearAllTags(),
-                              child: const Text('清除全部'),
-                            ),
-                        ],
-                      ),
+                      ],
                     ),
                   ),
                   // 标签列表
