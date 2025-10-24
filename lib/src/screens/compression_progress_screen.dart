@@ -7,6 +7,7 @@ import '../models/compression_model.dart';
 import '../models/compression_progress_model.dart';
 import '../models/video_model.dart';
 import '../utils.dart';
+import '../widgets/video_thumbnail.dart';
 
 class CompressionProgressScreen extends StatefulWidget {
   final List<VideoModel> selectedVideos;
@@ -95,11 +96,11 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
       padding: const EdgeInsets.all(16),
       itemCount: videos.length,
       itemBuilder: (context, index) {
-        final videoInfo = videos[index];
+        final videoId = videos[index].video.id;
         return _VideoProgressItem(
-          key: ValueKey(videoInfo.video.id),
-          videoInfo: videoInfo,
-          onAction: (action) => _handleVideoAction(videoInfo, action),
+          key: ValueKey(videoId),
+          videoId: videoId,
+          onAction: (action) => _handleVideoAction(videos[index], action),
         );
       },
     );
@@ -167,9 +168,6 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
         break;
       case VideoAction.retry:
         _progressCubit.retryVideo(videoInfo.video.id);
-        break;
-      case VideoAction.preview:
-        _showVideoPreview(context, videoInfo);
         break;
     }
   }
@@ -294,39 +292,47 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
       Navigator.of(context).pop();
     }
   }
-
-  /// 显示视频预览
-  void _showVideoPreview(BuildContext context, VideoCompressionInfo videoInfo) {
-    // TODO: 实现视频预览功能
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('预览 ${videoInfo.video.id}'),
-        backgroundColor: AppTheme.prosperityGold,
-      ),
-    );
-  }
 }
 
 /// 视频操作枚举
 enum VideoAction {
   cancel,
   retry,
-  preview,
 }
 
 /// 视频进度项组件
 class _VideoProgressItem extends StatelessWidget {
-  final VideoCompressionInfo videoInfo;
+  final String videoId;
   final Function(VideoAction) onAction;
 
   const _VideoProgressItem({
-    required Key key,
-    required this.videoInfo,
+    super.key,
+    required this.videoId,
     required this.onAction,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
+    return BlocSelector<CompressionProgressCubit, CompressionProgressState, VideoCompressionInfo?>(
+      selector: (state) {
+        try {
+          return state.videos.firstWhere((v) => v.video.id == videoId);
+        } catch (e) {
+          return null;
+        }
+      },
+      builder: (context, videoInfo) {
+        if (videoInfo == null) {
+          return const SizedBox.shrink();
+        }
+
+        return _buildContent(videoInfo);
+      },
+    );
+  }
+
+  /// 构建内容
+  Widget _buildContent(VideoCompressionInfo videoInfo) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -334,7 +340,7 @@ class _VideoProgressItem extends StatelessWidget {
         color: AppTheme.prosperityGray,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _getStatusColor().withValues(alpha: 0.3),
+          color: _getStatusColor(videoInfo).withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -345,19 +351,7 @@ class _VideoProgressItem extends StatelessWidget {
           Row(
             children: [
               // 状态图标
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: _getStatusColor().withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  _getStatusIcon(),
-                  color: _getStatusColor(),
-                  size: 20,
-                ),
-              ),
+              VideoThumbnail(id: videoInfo.video.id),
 
               const SizedBox(width: 12),
 
@@ -371,8 +365,8 @@ class _VideoProgressItem extends StatelessWidget {
                       children: [
                         // 状态信息
                         Icon(
-                          _getStatusIcon(),
-                          color: _getStatusColor(),
+                          _getStatusIcon(videoInfo),
+                          color: _getStatusColor(videoInfo),
                           size: 16,
                         ),
                         const SizedBox(width: 4),
@@ -380,7 +374,7 @@ class _VideoProgressItem extends StatelessWidget {
                           videoInfo.statusText,
                           style: TextStyle(
                             fontSize: 14,
-                            color: _getStatusColor(),
+                            color: _getStatusColor(videoInfo),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -475,14 +469,14 @@ class _VideoProgressItem extends StatelessWidget {
               ),
 
               // 操作按钮
-              _buildActionButton(),
+              _buildActionButton(videoInfo),
             ],
           ),
 
           // 进度信息
           if (videoInfo.status == VideoCompressionStatus.compressing || (videoInfo.status == VideoCompressionStatus.completed && videoInfo.progress > 0)) ...[
             const SizedBox(height: 12),
-            _buildProgressSection(),
+            _buildProgressSection(videoInfo),
           ],
         ],
       ),
@@ -490,7 +484,7 @@ class _VideoProgressItem extends StatelessWidget {
   }
 
   /// 构建进度区域
-  Widget _buildProgressSection() {
+  Widget _buildProgressSection(VideoCompressionInfo videoInfo) {
     return Column(
       children: [
         Row(
@@ -531,7 +525,7 @@ class _VideoProgressItem extends StatelessWidget {
         LinearProgressIndicator(
           value: videoInfo.progress,
           backgroundColor: AppTheme.prosperityLightGray.withValues(alpha: 0.3),
-          valueColor: AlwaysStoppedAnimation<Color>(_getStatusColor()),
+          valueColor: AlwaysStoppedAnimation<Color>(_getStatusColor(videoInfo)),
           minHeight: 6,
         ),
       ],
@@ -539,14 +533,14 @@ class _VideoProgressItem extends StatelessWidget {
   }
 
   /// 构建操作按钮
-  Widget _buildActionButton() {
+  Widget _buildActionButton(VideoCompressionInfo videoInfo) {
     return SizedBox(
       height: 32,
       child: ElevatedButton(
-        onPressed: _getOnPressed(),
+        onPressed: _getOnPressed(videoInfo),
         style: ElevatedButton.styleFrom(
-          backgroundColor: _getButtonColor(),
-          foregroundColor: _getButtonTextColor(),
+          backgroundColor: _getButtonColor(videoInfo),
+          foregroundColor: _getButtonTextColor(videoInfo),
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           shape: RoundedRectangleBorder(
@@ -565,7 +559,7 @@ class _VideoProgressItem extends StatelessWidget {
   }
 
   /// 获取状态图标
-  IconData _getStatusIcon() {
+  IconData _getStatusIcon(VideoCompressionInfo videoInfo) {
     switch (videoInfo.status) {
       case VideoCompressionStatus.waitingDownload:
         return Icons.more_horiz;
@@ -585,7 +579,7 @@ class _VideoProgressItem extends StatelessWidget {
   }
 
   /// 获取状态颜色
-  Color _getStatusColor() {
+  Color _getStatusColor(VideoCompressionInfo videoInfo) {
     switch (videoInfo.status) {
       case VideoCompressionStatus.waitingDownload:
         return AppTheme.prosperityLightGray;
@@ -605,7 +599,7 @@ class _VideoProgressItem extends StatelessWidget {
   }
 
   /// 获取按钮颜色
-  Color _getButtonColor() {
+  Color _getButtonColor(VideoCompressionInfo videoInfo) {
     switch (videoInfo.status) {
       case VideoCompressionStatus.waitingDownload:
       case VideoCompressionStatus.waiting:
@@ -621,7 +615,7 @@ class _VideoProgressItem extends StatelessWidget {
   }
 
   /// 获取按钮文字颜色
-  Color _getButtonTextColor() {
+  Color _getButtonTextColor(VideoCompressionInfo videoInfo) {
     switch (videoInfo.status) {
       case VideoCompressionStatus.waitingDownload:
       case VideoCompressionStatus.waiting:
@@ -636,7 +630,7 @@ class _VideoProgressItem extends StatelessWidget {
   }
 
   /// 获取按钮点击事件
-  VoidCallback? _getOnPressed() {
+  VoidCallback? _getOnPressed(VideoCompressionInfo videoInfo) {
     switch (videoInfo.status) {
       case VideoCompressionStatus.waitingDownload:
       case VideoCompressionStatus.waiting:
@@ -644,7 +638,7 @@ class _VideoProgressItem extends StatelessWidget {
       case VideoCompressionStatus.compressing:
         return () => onAction(VideoAction.cancel);
       case VideoCompressionStatus.completed:
-        return () => onAction(VideoAction.preview);
+        return () => {};
       case VideoCompressionStatus.cancelled:
       case VideoCompressionStatus.error:
         return () => onAction(VideoAction.retry);

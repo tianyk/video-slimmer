@@ -360,9 +360,9 @@ class _VideoItem extends StatelessWidget {
   final VideoModel video;
 
   const _VideoItem({
-    required Key key,
+    super.key,
     required this.video,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
