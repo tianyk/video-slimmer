@@ -6,6 +6,8 @@ import 'package:equatable/equatable.dart';
 import 'package:path/path.dart' as path;
 import 'package:uuid/uuid.dart';
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_new/ffprobe_kit.dart';
+import 'package:ffmpeg_kit_flutter_new/media_information_session.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:ffmpeg_kit_flutter_new/statistics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -338,12 +340,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       throw Exception('无法获取视频文件');
     }
 
-    print('[文件信息] 路径: ${file.absolute.path}');
-    print('[文件信息] 大小: ${(await file.length() / 1024 / 1024).toStringAsFixed(2)} MB');
-
-    // 打印元数据信息（调试用）
-    await _printVideoMetadata(assetEntity);
-
     return file.absolute.path;
   }
 
@@ -364,6 +360,9 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       }
 
       final String outputPath = await _buildOutputPath(inputPath);
+
+      // 压缩前：打印原视频元数据
+      await _printVideoMetadata(inputPath, '原视频');
 
       final String command = _buildFfmpegCommand(
         inputPath: inputPath,
@@ -391,6 +390,9 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
             print('耗时: ${elapsed.inMinutes}分${elapsed.inSeconds % 60}秒');
             print('输出路径: $outputPath');
             print('=======================');
+
+            // 压缩后：打印新视频元数据并对比
+            await _printVideoMetadata(outputPath, '压缩后');
 
             _markVideoCompleted(videoInfo, compressedSize, outputPath);
             _processNextVideo();
@@ -469,34 +471,119 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     return '${dir.path}/$fileName';
   }
 
-  /// 打印视频元数据信息（调试用）
-  Future<void> _printVideoMetadata(AssetEntity assetEntity) async {
-    print('\n========== 📹 视频元数据 ==========');
+  /// 使用 FFprobe 打印视频元数据信息（调试用）
+  ///
+  /// 通过 FFprobe 获取视频的完整元数据，包括：
+  /// - 文件信息（大小、格式、时长）
+  /// - 视频流信息（编码、分辨率、帧率、码率）
+  /// - 音频流信息（编码、采样率、码率）
+  /// - 元数据标签（GPS、拍摄时间、设备信息等）
+  Future<void> _printVideoMetadata(String videoPath, String label) async {
+    try {
+      print('\n========== 📹 $label 元数据 ==========');
+      print('📂 路径: $videoPath');
 
-    // 基本信息
-    print('📄 文件名: ${assetEntity.title}');
-    print('📅 拍摄时间: ${assetEntity.createDateTime}');
-    print('📅 修改时间: ${assetEntity.modifiedDateTime}');
-    print('⏱️  时长: ${assetEntity.duration} 秒');
-    print('📐 分辨率: ${assetEntity.width} × ${assetEntity.height}');
+      // 使用 FFprobe 获取媒体信息
+      final MediaInformationSession session = await FFprobeKit.getMediaInformation(videoPath);
+      final mediaInformation = session.getMediaInformation();
 
-    // GPS 信息
-    final latLng = await assetEntity.latlngAsync();
-    if (latLng != null) {
-      print('📍 GPS 坐标:');
-      print('   纬度: ${latLng.latitude}°');
-      print('   经度: ${latLng.longitude}°');
-    } else {
-      print('📍 GPS 坐标: 无');
+      if (mediaInformation == null) {
+        print('⚠️  无法获取媒体信息');
+        print('===================================\n');
+        return;
+      }
+
+      // 文件基本信息
+      final fileSize = await File(videoPath).length();
+      print('📦 文件大小: ${formatFileSize(fileSize)}');
+      print('📄 格式: ${mediaInformation.getFormat()}');
+      print('⏱️  时长: ${_formatDuration(mediaInformation.getDuration())}');
+      print('📊 码率: ${_formatBitrate(mediaInformation.getBitrate())}');
+
+      // 视频流信息
+      final streams = mediaInformation.getStreams();
+      for (final stream in streams) {
+        final codecType = stream.getAllProperties()?['codec_type'];
+
+        if (codecType == 'video') {
+          print('\n🎬 视频流:');
+          print('   编码: ${stream.getAllProperties()?['codec_name']}');
+          print('   分辨率: ${stream.getAllProperties()?['width']} × ${stream.getAllProperties()?['height']}');
+          print('   帧率: ${stream.getAllProperties()?['r_frame_rate']}');
+          print('   码率: ${_formatBitrate(stream.getAllProperties()?['bit_rate'])}');
+          print('   像素格式: ${stream.getAllProperties()?['pix_fmt']}');
+
+          // 色彩空间信息
+          final colorSpace = stream.getAllProperties()?['color_space'];
+          final colorPrimaries = stream.getAllProperties()?['color_primaries'];
+          final colorTransfer = stream.getAllProperties()?['color_transfer'];
+          if (colorSpace != null) print('   色彩空间: $colorSpace');
+          if (colorPrimaries != null) print('   色域: $colorPrimaries');
+          if (colorTransfer != null) print('   传输特性: $colorTransfer');
+        } else if (codecType == 'audio') {
+          print('\n🔊 音频流:');
+          print('   编码: ${stream.getAllProperties()?['codec_name']}');
+          print('   采样率: ${stream.getAllProperties()?['sample_rate']} Hz');
+          print('   声道: ${stream.getAllProperties()?['channels']}');
+          print('   码率: ${_formatBitrate(stream.getAllProperties()?['bit_rate'])}');
+        }
+      }
+
+      // 元数据标签（GPS、拍摄时间等）
+      final tags = mediaInformation.getTags();
+      if (tags != null && tags.isNotEmpty) {
+        print('\n📝 元数据标签:');
+
+        // 拍摄时间
+        final creationTime = tags['creation_time'] ?? tags['com.apple.quicktime.creationdate'];
+        if (creationTime != null) print('   📅 拍摄时间: $creationTime');
+
+        // GPS 信息
+        final location = tags['location'] ?? tags['com.apple.quicktime.location.ISO6709'];
+        if (location != null) print('   📍 GPS: $location');
+
+        // 设备信息
+        final make = tags['make'] ?? tags['com.apple.quicktime.make'];
+        final model = tags['model'] ?? tags['com.apple.quicktime.model'];
+        if (make != null) print('   📱 制造商: $make');
+        if (model != null) print('   📱 型号: $model');
+
+        // 软件版本
+        final software = tags['software'] ?? tags['com.apple.quicktime.software'];
+        if (software != null) print('   💿 软件: $software');
+      }
+
+      print('===================================\n');
+    } catch (e) {
+      print('⚠️  获取元数据失败: $e');
+      print('===================================\n');
     }
+  }
 
-    // 方向信息
-    print('🧭 方向: ${assetEntity.orientation}°');
+  /// 格式化时长
+  String _formatDuration(String? durationStr) {
+    if (durationStr == null) return '未知';
+    try {
+      final duration = double.parse(durationStr);
+      final minutes = (duration / 60).floor();
+      final seconds = (duration % 60).floor();
+      return '${minutes}分${seconds}秒';
+    } catch (e) {
+      return durationStr;
+    }
+  }
 
-    // 文件路径
-    print('📂 相对路径: ${assetEntity.relativePath ?? "无"}');
-
-    print('===================================\n');
+  /// 格式化码率
+  String _formatBitrate(dynamic bitrate) {
+    if (bitrate == null) return '未知';
+    try {
+      final bitrateInt = int.parse(bitrate.toString());
+      if (bitrateInt < 1000) return '$bitrateInt bps';
+      if (bitrateInt < 1000000) return '${(bitrateInt / 1000).toStringAsFixed(1)} Kbps';
+      return '${(bitrateInt / 1000000).toStringAsFixed(2)} Mbps';
+    } catch (e) {
+      return bitrate.toString();
+    }
   }
 
   /// 构建 FFmpeg 压缩命令
