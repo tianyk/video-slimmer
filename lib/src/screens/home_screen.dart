@@ -366,10 +366,9 @@ class _VideoItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<VideoSelectionCubit, Set<String>>(
-      builder: (context, selectedVideoIds) {
-        final isSelected = selectedVideoIds.contains(video.id);
-
+    return BlocSelector<VideoSelectionCubit, Set<String>, bool>(
+      selector: (selectedVideoIds) => selectedVideoIds.contains(video.id),
+      builder: (context, isSelected) {
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           elevation: isSelected ? 8 : 2,

@@ -6,15 +6,16 @@ class VideoSelectionCubit extends Cubit<Set<String>> {
 
   /// 切换视频选择状态
   void toggleSelection(String videoId, double videoSize) {
-    if (state.contains(videoId)) {
+    final newState = Set<String>.from(state);
+    if (newState.contains(videoId)) {
       // 取消选择
-      state.remove(videoId);
+      newState.remove(videoId);
     } else {
       // 添加选择
-      state.add(videoId);
+      newState.add(videoId);
     }
 
-    emit(state);
+    emit(newState);
   }
 
   /// 清除所有选择
