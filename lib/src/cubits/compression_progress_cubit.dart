@@ -499,118 +499,170 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     }
   }
 
-  /// 使用 FFprobe 打印视频元数据信息（调试用）
+  /// 获取视频元数据
   ///
-  /// 通过 FFprobe 获取视频的完整元数据，包括：
-  /// - 文件信息（大小、格式、时长）
-  /// - 视频流信息（编码、分辨率、帧率、码率）
-  /// - 音频流信息（编码、采样率、码率）
-  /// - 元数据标签（GPS、拍摄时间、设备信息等）
-  Future<void> _printVideoMetadata(String videoPath, String label) async {
+  /// 使用 FFprobe 提取视频的完整元数据信息，返回结构化的 [VideoMetadata] 对象。
+  ///
+  /// 包含信息：
+  /// - 文件基本信息（大小、格式、时长、码率）
+  /// - 视频流信息（编码、分辨率、帧率、色彩空间）
+  /// - 音频流信息（编码、采样率、声道数）
+  /// - 元数据标签（GPS、拍摄时间、设备信息）
+  ///
+  /// 参数：
+  /// - [videoPath]: 视频文件的绝对路径
+  ///
+  /// 返回值：
+  /// - 成功：返回 [VideoMetadata] 对象
+  /// - 失败：返回 null
+  Future<VideoMetadata?> _getVideoMetadata(String videoPath) async {
     try {
-      print('\n========== 📹 $label 元数据 ==========');
-      print('📂 路径: $videoPath');
-
       // 使用 FFprobe 获取媒体信息
       final MediaInformationSession session = await FFprobeKit.getMediaInformation(videoPath);
       final mediaInformation = session.getMediaInformation();
 
       if (mediaInformation == null) {
+        return null;
+      }
+
+      // 文件基本信息
+      final fileSize = await File(videoPath).length();
+      final format = mediaInformation.getFormat();
+      final durationStr = mediaInformation.getDuration();
+      final bitrateStr = mediaInformation.getBitrate();
+
+      final double? duration = durationStr != null ? double.tryParse(durationStr) : null;
+      final int? bitrate = bitrateStr != null ? int.tryParse(bitrateStr) : null;
+
+      // 解析流信息
+      VideoStreamInfo? videoStream;
+      AudioStreamInfo? audioStream;
+      final streams = mediaInformation.getStreams();
+
+      for (final stream in streams) {
+        final props = stream.getAllProperties();
+        final codecType = props?['codec_type'];
+
+        if (codecType == 'video' && videoStream == null) {
+          // 解析视频流
+          videoStream = VideoStreamInfo(
+            codecName: props?['codec_name'],
+            width: props?['width'],
+            height: props?['height'],
+            frameRate: props?['r_frame_rate'],
+            bitrate: props?['bit_rate'] != null ? int.tryParse(props!['bit_rate'].toString()) : null,
+            pixelFormat: props?['pix_fmt'],
+            colorSpace: props?['color_space'],
+            colorPrimaries: props?['color_primaries'],
+            colorTransfer: props?['color_transfer'],
+          );
+        } else if (codecType == 'audio' && audioStream == null) {
+          // 解析音频流
+          audioStream = AudioStreamInfo(
+            codecName: props?['codec_name'],
+            sampleRate: props?['sample_rate'] != null ? int.tryParse(props!['sample_rate'].toString()) : null,
+            channels: props?['channels'],
+            bitrate: props?['bit_rate'] != null ? int.tryParse(props!['bit_rate'].toString()) : null,
+          );
+        }
+      }
+
+      // 解析元数据标签
+      MetadataTags? tags;
+      final rawTags = mediaInformation.getTags();
+      if (rawTags != null && rawTags.isNotEmpty) {
+        tags = MetadataTags(
+          creationTime: rawTags['creation_time'] ?? rawTags['com.apple.quicktime.creationdate'],
+          location: rawTags['location'] ?? rawTags['com.apple.quicktime.location.ISO6709'],
+          make: rawTags['make'] ?? rawTags['com.apple.quicktime.make'],
+          model: rawTags['model'] ?? rawTags['com.apple.quicktime.model'],
+          software: rawTags['software'] ?? rawTags['com.apple.quicktime.software'],
+        );
+      }
+
+      return VideoMetadata(
+        filePath: videoPath,
+        fileSize: fileSize,
+        format: format,
+        duration: duration,
+        bitrate: bitrate,
+        videoStream: videoStream,
+        audioStream: audioStream,
+        tags: tags,
+      );
+    } catch (e) {
+      print('⚠️  获取视频元数据失败: $e');
+      return null;
+    }
+  }
+
+  /// 打印视频元数据信息（调试用）
+  ///
+  /// 使用 [_getVideoMetadata] 获取元数据并格式化打印到控制台。
+  ///
+  /// 参数：
+  /// - [videoPath]: 视频文件的绝对路径
+  /// - [label]: 标签文字（用于区分原视频和压缩后视频）
+  Future<void> _printVideoMetadata(String videoPath, String label) async {
+    try {
+      print('\n========== 📹 $label 元数据 ==========');
+      print('📂 路径: $videoPath');
+
+      final metadata = await _getVideoMetadata(videoPath);
+
+      if (metadata == null) {
         print('⚠️  无法获取媒体信息');
         print('===================================\n');
         return;
       }
 
       // 文件基本信息
-      final fileSize = await File(videoPath).length();
-      print('📦 文件大小: ${formatFileSize(fileSize)}');
-      print('📄 格式: ${mediaInformation.getFormat()}');
-      print('⏱️  时长: ${_formatDuration(mediaInformation.getDuration())}');
-      print('📊 码率: ${_formatBitrate(mediaInformation.getBitrate())}');
+      print('📦 文件大小: ${metadata.formattedFileSize}');
+      print('📄 格式: ${metadata.format ?? "未知"}');
+      print('⏱️  时长: ${metadata.formattedDuration}');
+      print('📊 码率: ${metadata.formattedBitrate}');
 
       // 视频流信息
-      final streams = mediaInformation.getStreams();
-      for (final stream in streams) {
-        final codecType = stream.getAllProperties()?['codec_type'];
+      final videoStream = metadata.videoStream;
+      if (videoStream != null) {
+        print('\n🎬 视频流:');
+        print('   编码: ${videoStream.codecName ?? "未知"}');
+        print('   分辨率: ${videoStream.width ?? "?"} × ${videoStream.height ?? "?"}');
+        print('   帧率: ${videoStream.frameRate ?? "未知"}');
+        print('   码率: ${videoStream.formattedBitrate}');
+        print('   像素格式: ${videoStream.pixelFormat ?? "未知"}');
 
-        if (codecType == 'video') {
-          print('\n🎬 视频流:');
-          print('   编码: ${stream.getAllProperties()?['codec_name']}');
-          print('   分辨率: ${stream.getAllProperties()?['width']} × ${stream.getAllProperties()?['height']}');
-          print('   帧率: ${stream.getAllProperties()?['r_frame_rate']}');
-          print('   码率: ${_formatBitrate(stream.getAllProperties()?['bit_rate'])}');
-          print('   像素格式: ${stream.getAllProperties()?['pix_fmt']}');
-
-          // 色彩空间信息
-          final colorSpace = stream.getAllProperties()?['color_space'];
-          final colorPrimaries = stream.getAllProperties()?['color_primaries'];
-          final colorTransfer = stream.getAllProperties()?['color_transfer'];
-          if (colorSpace != null) print('   色彩空间: $colorSpace');
-          if (colorPrimaries != null) print('   色域: $colorPrimaries');
-          if (colorTransfer != null) print('   传输特性: $colorTransfer');
-        } else if (codecType == 'audio') {
-          print('\n🔊 音频流:');
-          print('   编码: ${stream.getAllProperties()?['codec_name']}');
-          print('   采样率: ${stream.getAllProperties()?['sample_rate']} Hz');
-          print('   声道: ${stream.getAllProperties()?['channels']}');
-          print('   码率: ${_formatBitrate(stream.getAllProperties()?['bit_rate'])}');
-        }
+        // 色彩空间信息
+        if (videoStream.colorSpace != null) print('   色彩空间: ${videoStream.colorSpace}');
+        if (videoStream.colorPrimaries != null) print('   色域: ${videoStream.colorPrimaries}');
+        if (videoStream.colorTransfer != null) print('   传输特性: ${videoStream.colorTransfer}');
       }
 
-      // 元数据标签（GPS、拍摄时间等）
-      final tags = mediaInformation.getTags();
-      if (tags != null && tags.isNotEmpty) {
+      // 音频流信息
+      final audioStream = metadata.audioStream;
+      if (audioStream != null) {
+        print('\n🔊 音频流:');
+        print('   编码: ${audioStream.codecName ?? "未知"}');
+        print('   采样率: ${audioStream.sampleRate ?? "?"} Hz');
+        print('   声道: ${audioStream.channels ?? "?"}');
+        print('   码率: ${audioStream.formattedBitrate}');
+      }
+
+      // 元数据标签
+      final tags = metadata.tags;
+      if (tags != null) {
         print('\n📝 元数据标签:');
-
-        // 拍摄时间
-        final creationTime = tags['creation_time'] ?? tags['com.apple.quicktime.creationdate'];
-        if (creationTime != null) print('   📅 拍摄时间: $creationTime');
-
-        // GPS 信息
-        final location = tags['location'] ?? tags['com.apple.quicktime.location.ISO6709'];
-        if (location != null) print('   📍 GPS: $location');
-
-        // 设备信息
-        final make = tags['make'] ?? tags['com.apple.quicktime.make'];
-        final model = tags['model'] ?? tags['com.apple.quicktime.model'];
-        if (make != null) print('   📱 制造商: $make');
-        if (model != null) print('   📱 型号: $model');
-
-        // 软件版本
-        final software = tags['software'] ?? tags['com.apple.quicktime.software'];
-        if (software != null) print('   💿 软件: $software');
+        if (tags.creationTime != null) print('   📅 拍摄时间: ${tags.creationTime}');
+        if (tags.location != null) print('   📍 GPS: ${tags.location}');
+        if (tags.make != null) print('   📱 制造商: ${tags.make}');
+        if (tags.model != null) print('   📱 型号: ${tags.model}');
+        if (tags.software != null) print('   💿 软件: ${tags.software}');
       }
 
       print('===================================\n');
     } catch (e) {
-      print('⚠️  获取元数据失败: $e');
+      print('⚠️  打印元数据失败: $e');
       print('===================================\n');
-    }
-  }
-
-  /// 格式化时长
-  String _formatDuration(String? durationStr) {
-    if (durationStr == null) return '未知';
-    try {
-      final duration = double.parse(durationStr);
-      final minutes = (duration / 60).floor();
-      final seconds = (duration % 60).floor();
-      return '${minutes}分${seconds}秒';
-    } catch (e) {
-      return durationStr;
-    }
-  }
-
-  /// 格式化码率
-  String _formatBitrate(dynamic bitrate) {
-    if (bitrate == null) return '未知';
-    try {
-      final bitrateInt = int.parse(bitrate.toString());
-      if (bitrateInt < 1000) return '$bitrateInt bps';
-      if (bitrateInt < 1000000) return '${(bitrateInt / 1000).toStringAsFixed(1)} Kbps';
-      return '${(bitrateInt / 1000000).toStringAsFixed(2)} Mbps';
-    } catch (e) {
-      return bitrate.toString();
     }
   }
 
