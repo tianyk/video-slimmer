@@ -368,28 +368,6 @@ enum VideoAction {
   retry,
 }
 
-/// 缓存的视频缩略图组件
-/// 使用 StatefulWidget 确保即使父组件重建，缩略图也不会重新加载
-class _CachedVideoThumbnail extends StatefulWidget {
-  final String videoId;
-
-  const _CachedVideoThumbnail({
-    required this.videoId,
-  });
-
-  @override
-  State<_CachedVideoThumbnail> createState() => _CachedVideoThumbnailState();
-}
-
-class _CachedVideoThumbnailState extends State<_CachedVideoThumbnail> {
-  @override
-  Widget build(BuildContext context) {
-    // VideoThumbnail 只会在初始化时创建一次
-    // 后续父组件重建不会影响这里
-    return VideoThumbnail(id: widget.videoId);
-  }
-}
-
 /// 视频进度项组件
 class _VideoProgressItem extends StatelessWidget {
   final String videoId;
@@ -439,8 +417,8 @@ class _VideoProgressItem extends StatelessWidget {
             // 视频信息行
             Row(
               children: [
-                // 缩略图（使用缓存组件避免重复渲染）
-                _CachedVideoThumbnail(videoId: videoId),
+                // 缩略图（VideoThumbnail 内部已缓存 Future）
+                VideoThumbnail(id: videoInfo.video.id),
 
                 const SizedBox(width: 12),
 
