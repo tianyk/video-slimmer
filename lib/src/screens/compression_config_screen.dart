@@ -130,7 +130,7 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
                     ),
                   )
                 else
-                  const Icon(Icons.compress),
+                  const SizedBox.shrink(),
                 const SizedBox(width: 8),
                 Text(
                   state.isCalculatingEstimate ? '计算中...' : '开始压缩',

@@ -164,19 +164,6 @@ flutter: snapshot.error: MissingPluginException(No implementation found for meth
 
 ---
 
-## 一步解决
-
-```bash
-# 完全重置iOS开发环境
-flutter clean
-rm -rf ios/
-flutter create . --platforms ios --org cc.kekek --overwrite --project-name videoslimmer
-flutter pub get
-cd ios && pod install
-```
-
----
-
 ## Apple Silicon首执阻塞问题 🚫
 **症状**:
 - flutter命令首次启动阻塞10分钟+ 

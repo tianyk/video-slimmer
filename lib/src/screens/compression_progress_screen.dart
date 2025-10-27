@@ -20,7 +20,8 @@ class CompressionProgressScreen extends StatefulWidget {
   });
 
   @override
-  State<CompressionProgressScreen> createState() => _CompressionProgressScreenState();
+  State<CompressionProgressScreen> createState() =>
+      _CompressionProgressScreenState();
 }
 
 class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
@@ -77,6 +78,8 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
           children: [
             // 主要内容区域
             BlocBuilder<CompressionProgressCubit, CompressionProgressState>(
+              buildWhen: (previous, current) =>
+                  previous.videos.length != current.videos.length,
               builder: (context, state) {
                 return _buildVideoList(state.videos);
               },
@@ -173,7 +176,8 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
   }
 
   /// 显示取消视频确认对话框
-  void _showCancelVideoConfirmation(BuildContext context, VideoCompressionInfo videoInfo) {
+  void _showCancelVideoConfirmation(
+      BuildContext context, VideoCompressionInfo videoInfo) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -183,7 +187,9 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
           style: TextStyle(color: AppTheme.prosperityGold),
         ),
         content: Text(
-          videoInfo.status == VideoCompressionStatus.compressing ? '确定要取消正在压缩的视频吗？\n当前进度将丢失。' : '确定要从队列中移除这个视频吗？',
+          videoInfo.status == VideoCompressionStatus.compressing
+              ? '确定要取消正在压缩的视频吗？\n当前进度将丢失。'
+              : '确定要从队列中移除这个视频吗？',
           style: const TextStyle(color: AppTheme.prosperityLightGold),
         ),
         actions: [
@@ -313,7 +319,8 @@ class _VideoProgressItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocSelector<CompressionProgressCubit, CompressionProgressState, VideoCompressionInfo?>(
+    return BlocSelector<CompressionProgressCubit, CompressionProgressState,
+        VideoCompressionInfo?>(
       selector: (state) {
         try {
           return state.videos.firstWhere((v) => v.video.id == videoId);
@@ -416,7 +423,8 @@ class _VideoProgressItem extends StatelessWidget {
                           const SizedBox(width: 4),
                           Text(
                             // 视频创建时间，格式化显示
-                            formatDateToFriendlyString(videoInfo.video.creationDate),
+                            formatDateToFriendlyString(
+                                videoInfo.video.creationDate),
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey[600],
@@ -434,7 +442,9 @@ class _VideoProgressItem extends StatelessWidget {
             ),
 
             // 进度信息
-            if (videoInfo.status == VideoCompressionStatus.compressing || (videoInfo.status == VideoCompressionStatus.completed && videoInfo.progress > 0)) ...[
+            if (videoInfo.status == VideoCompressionStatus.compressing ||
+                (videoInfo.status == VideoCompressionStatus.completed &&
+                    videoInfo.progress > 0)) ...[
               const SizedBox(height: 12),
               _buildProgressSection(videoInfo),
             ],
@@ -452,7 +462,9 @@ class _VideoProgressItem extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              videoInfo.status == VideoCompressionStatus.compressing ? '压缩进度' : '已完成',
+              videoInfo.status == VideoCompressionStatus.compressing
+                  ? '压缩进度'
+                  : '已完成',
               style: const TextStyle(
                 fontSize: 14,
                 color: AppTheme.prosperityLightGold,
