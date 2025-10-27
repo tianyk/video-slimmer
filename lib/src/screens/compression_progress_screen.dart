@@ -52,45 +52,73 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: _progressCubit,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('压缩进度'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => _showExitConfirmation(context),
-          ),
-          actions: [
-            BlocBuilder<CompressionProgressCubit, CompressionProgressState>(
-              builder: (context, state) {
-                if (state.hasActiveCompression) {
-                  return IconButton(
-                    icon: const Icon(Icons.stop),
-                    onPressed: () => _showCancelAllConfirmation(context),
-                    tooltip: '停止所有压缩',
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-          ],
-        ),
-        body: Stack(
-          children: [
-            // 主要内容区域
-            BlocBuilder<CompressionProgressCubit, CompressionProgressState>(
-              buildWhen: (previous, current) =>
-                  previous.videos.length != current.videos.length,
-              builder: (context, state) {
-                return _buildVideoList(state.videos);
-              },
-            ),
+      child: BlocBuilder<CompressionProgressCubit, CompressionProgressState>(
+        buildWhen: (previous, current) =>
+            previous.hasActiveCompression != current.hasActiveCompression,
+        builder: (context, state) {
+          return PopScope(
+            canPop: !state.hasActiveCompression,
+            onPopInvokedWithResult: (bool didPop, Object? result) async {
+              // 如果页面没有弹出且有活跃任务，显示确认对话框
+              if (!didPop && state.hasActiveCompression) {
+                await _showExitConfirmationAndHandle(context);
+              }
+            },
+            child: Scaffold(
+              appBar: AppBar(
+                title: const Text('压缩进度'),
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => _handleBackNavigation(context),
+                ),
+                actions: [
+                  BlocBuilder<CompressionProgressCubit,
+                      CompressionProgressState>(
+                    builder: (context, state) {
+                      if (state.hasActiveCompression) {
+                        return IconButton(
+                          icon: const Icon(Icons.stop),
+                          onPressed: () => _showCancelAllConfirmation(context),
+                          tooltip: '停止所有压缩',
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ],
+              ),
+              body: Stack(
+                children: [
+                  // 主要内容区域
+                  BlocBuilder<CompressionProgressCubit,
+                      CompressionProgressState>(
+                    buildWhen: (previous, current) =>
+                        previous.videos.length != current.videos.length,
+                    builder: (context, state) {
+                      return _buildVideoList(state.videos);
+                    },
+                  ),
 
-            // 底部浮动按钮
-            _buildFloatingButton(),
-          ],
-        ),
+                  // 底部浮动按钮
+                  _buildFloatingButton(),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
+  }
+
+  /// 处理返回导航（统一处理AppBar返回按钮、手势返回、系统返回按钮）
+  void _handleBackNavigation(BuildContext context) {
+    final state = _progressCubit.state;
+
+    if (state.hasActiveCompression) {
+      _showExitConfirmation(context);
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 
   /// 构建视频列表
@@ -254,49 +282,83 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
     );
   }
 
-  /// 显示退出确认对话框
-  void _showExitConfirmation(BuildContext context) {
-    final state = _progressCubit.state;
-
-    if (state.hasActiveCompression) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: AppTheme.prosperityGray,
-          title: const Text(
-            '确认退出',
-            style: TextStyle(color: AppTheme.prosperityGold),
-          ),
-          content: const Text(
-            '压缩任务正在进行中。\n退出将取消所有未完成的压缩。',
-            style: TextStyle(color: AppTheme.prosperityLightGold),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text(
-                '继续压缩',
-                style: TextStyle(color: AppTheme.prosperityLightGold),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _progressCubit.cancelAllCompression();
-                Navigator.of(context).pop();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('退出'),
-            ),
-          ],
+  /// 显示退出确认对话框并处理（用于 PopScope 的异步回调）
+  Future<void> _showExitConfirmationAndHandle(BuildContext context) async {
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.prosperityGray,
+        title: const Text(
+          '确认退出',
+          style: TextStyle(color: AppTheme.prosperityGold),
         ),
-      );
-    } else {
+        content: const Text(
+          '压缩任务正在进行中。\n退出将取消所有未完成的压缩。',
+          style: TextStyle(color: AppTheme.prosperityLightGold),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(
+              '继续压缩',
+              style: TextStyle(color: AppTheme.prosperityLightGold),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldExit == true && context.mounted) {
+      _progressCubit.cancelAllCompression();
       Navigator.of(context).pop();
     }
+  }
+
+  /// 显示退出确认对话框（用于 AppBar 返回按钮）
+  void _showExitConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.prosperityGray,
+        title: const Text(
+          '确认退出',
+          style: TextStyle(color: AppTheme.prosperityGold),
+        ),
+        content: const Text(
+          '压缩任务正在进行中。\n退出将取消所有未完成的压缩。',
+          style: TextStyle(color: AppTheme.prosperityLightGold),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(
+              '继续压缩',
+              style: TextStyle(color: AppTheme.prosperityLightGold),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _progressCubit.cancelAllCompression();
+              Navigator.of(context).pop();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
