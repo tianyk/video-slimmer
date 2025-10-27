@@ -5,11 +5,11 @@ import 'dart:math';
 import 'package:equatable/equatable.dart';
 import 'package:path/path.dart' as path;
 import 'package:uuid/uuid.dart';
-import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_new/ffprobe_kit.dart';
-import 'package:ffmpeg_kit_flutter_new/media_information_session.dart';
-import 'package:ffmpeg_kit_flutter_new/return_code.dart';
-import 'package:ffmpeg_kit_flutter_new/statistics.dart';
+import 'package:ffmpeg_kit_flutter_new_min_gpl/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_new_min_gpl/ffprobe_kit.dart';
+import 'package:ffmpeg_kit_flutter_new_min_gpl/media_information_session.dart';
+import 'package:ffmpeg_kit_flutter_new_min_gpl/return_code.dart';
+import 'package:ffmpeg_kit_flutter_new_min_gpl/statistics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:photo_manager/photo_manager.dart';
 
@@ -616,105 +616,137 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   /// 构建 FFmpeg 压缩命令
   ///
-  /// 保留完整元数据和流信息，确保保存回相册后显示正常：
-  /// - `-map 0`: 复制所有流（视频、音频、字幕、章节等）
-  /// - `-map_metadata 0`: 复制所有元数据
-  /// - `-movflags use_metadata_tags`: 保留 MP4 元数据标签
-  /// - 自动检测并使用原视频的编码格式（HEVC 保持 HEVC，H.264 保持 H.264）
-  /// - 保留：GPS、拍摄时间、相机信息、方向、色彩空间等
+  /// 生成用于视频压缩的完整 FFmpeg 命令行参数，包含硬件加速、元数据保留、
+  /// 色彩空间处理等功能。命令会根据原视频编码格式自动选择最佳编码器。
+  ///
+  /// 支持的特性：
+  /// - 硬件加速解码（VideoToolbox）
+  /// - Dolby Vision / HDR10 / HLG 支持
+  /// - 完整的元数据保留（GPS、拍摄时间、设备信息）
+  /// - 自动编码器选择（HEVC/H.264）
+  /// - 容错处理（处理特殊编码的视频）
+  ///
+  /// 参数说明：
+  /// - [inputPath]: 输入视频文件的绝对路径
+  /// - [outputPath]: 输出视频文件的绝对路径
+  /// - [config]: 压缩配置（CRF、码率、帧率、音频质量等）
+  ///
+  /// 返回值：
+  /// - 返回完整的 FFmpeg 命令字符串，可直接传递给 FFmpegKit.execute()
   Future<String> _buildFfmpegCommand({
     required String inputPath,
     required String outputPath,
     required CompressionConfig config,
   }) async {
-    // 视频编码参数
-    final int crf = config.customCRF ?? 23;
-    final int videoBitrate = config.customBitrate ?? 0; // 可选
-    final bool keepFps = config.keepOriginalFrameRate;
-    final double? customFps = config.customFrameRate;
-    final int audioKbps = config.audioQuality;
+    // 视频编码参数配置
+    final int crf = config.customCRF ?? 23; // 恒定质量因子：0-51，值越小质量越高
+    final int videoBitrate = config.customBitrate ?? 0; // 目标视频码率（kbps），0 表示不限制
+    final bool keepFps = config.keepOriginalFrameRate; // 是否保持原始帧率
+    final double? customFps = config.customFrameRate; // 自定义帧率
+    final int audioKbps = config.audioQuality; // 音频码率（kbps）
 
-    // 检测原视频编码格式
+    // 检测原视频编码格式（hevc, h264, vp9 等）
     final String? originalCodec = await _detectVideoCodec(inputPath);
     print('[视频编码] 原始编码: $originalCodec');
 
-    // 根据原视频编码选择编码器
-    final String videoCodec;
-    final String videoTag;
-    // 是否是 HEVC 编码
-    final bool isHevc = originalCodec == 'hevc' || originalCodec == 'h265';
+    // 根据原视频编码选择编码器和标签
+    final String videoCodec; // 视频编码器：libx265 或 libx264
+    final String videoTag; // iOS 兼容标签：hvc1 或 avc1
+    final bool isHevc = originalCodec == 'hevc' || originalCodec == 'h265'; // 是否是 HEVC 编码
 
     if (isHevc) {
-      // 原视频是 HEVC，保持 HEVC（支持 HDR）
+      // 原视频是 HEVC，保持 HEVC（支持 HDR、Dolby Vision）
       videoCodec = 'libx265';
-      videoTag = 'hvc1'; // iOS HEVC 标签
+      videoTag = 'hvc1'; // iOS 11+ HEVC 标签
       print('[编码器] 使用 HEVC (libx265) 保留 HDR');
     } else {
       // 原视频是 H.264 或其他，使用 H.264（兼容性最好）
       videoCodec = 'libx264';
-      videoTag = 'avc1'; // iOS H.264 标签
+      videoTag = 'avc1'; // 所有 iOS 版本支持的 H.264 标签
       print('[编码器] 使用 H.264 (libx264)');
     }
 
+    // 构建 FFmpeg 命令参数列表
     final List<String> args = [];
-    args.addAll(['-y', '-hide_banner']);
 
-    // ✅ 禁止自动旋转（保留原始方向元数据）
-    args.addAll(['-noautorotate']);
+    // === 全局参数 ===
+    args.addAll(['-y', '-hide_banner']); // -y: 自动覆盖输出文件 | -hide_banner: 隐藏启动信息
 
-    args.addAll(['-i', _q(inputPath)]);
+    // === 硬件加速解码（仅 iOS/macOS）===
+    if (Platform.isIOS || Platform.isMacOS) {
+      args.addAll(['-hwaccel', 'videotoolbox']); // 使用 Apple VideoToolbox 硬件解码器（支持 Dolby Vision/HDR10/HLG）
+      print('[硬件加速] 使用 VideoToolbox 硬件解码');
+    }
 
-    // ✅ 复制所有流（包括字幕、章节等）
-    args.addAll(['-map', '0']);
+    // === 容错处理 ===
+    args.addAll(['-err_detect', 'ignore_err']); // 忽略解码错误，处理特殊编码的 HEVC 视频（如 Dolby Vision）
+    args.addAll(['-strict', 'experimental']); // 允许实验性功能和非标准流
 
-    // ✅ 保留所有元数据
-    args.addAll(['-map_metadata', '0']);
-    args.addAll(['-map_metadata:s:v', '0:s:v']); // 保留视频流元数据
-    args.addAll(['-map_metadata:s:a', '0:s:a']); // 保留音频流元数据
+    // === 输入处理 ===
+    args.addAll(['-noautorotate']); // 禁止自动旋转，保留原始旋转元数据
+    args.addAll(['-i', _q(inputPath)]); // 输入文件路径
 
-    // 视频编码
-    args.addAll(['-c:v', videoCodec, '-preset', 'medium', '-crf', crf.toString()]);
+    // === 流映射（Stream Mapping）===
+    args.addAll(['-map', '0']); // 复制所有流：视频、音频、字幕、数据流（包括 Apple 相册的 mebx 元数据轨道）
 
-    // ✅ 色彩空间处理
+    // === 元数据保留 ===
+    args.addAll(['-map_metadata', '0']); // 复制容器级别元数据：GPS、拍摄时间、设备信息
+    args.addAll(['-map_metadata:s:v', '0:s:v']); // 复制视频流元数据：编码器、色彩空间、HDR 参数
+    args.addAll(['-map_metadata:s:a', '0:s:a']); // 复制音频流元数据：编码器、采样率
+
+    // === 视频编码参数 ===
+    args.addAll([
+      '-c:v', videoCodec, // 视频编码器：libx265 或 libx264
+      '-preset', 'medium', // 编码速度预设：速度与压缩率的平衡点（ultrafast~veryslow）
+      '-crf', crf.toString(), // 恒定质量因子：18(高质量) 23(平衡) 28(高压缩)
+    ]);
+
+    // === 色彩空间处理 ===
     if (isHevc) {
-      // HEVC：不强制转换色彩空间，保留原始 HDR/SDR
-      // FFmpeg 会自动保留原视频的色彩空间（bt2020/bt709）
+      // HEVC：保留原始色彩空间（bt2020/bt709），支持 HDR 和 10-bit 色深
       print('[色彩空间] 保留原始色彩空间（HDR/SDR）');
     } else {
       // H.264：强制使用 bt709（SDR），因为 H.264 不支持 HDR
-      args.addAll(['-colorspace', 'bt709']);
-      args.addAll(['-color_primaries', 'bt709']);
-      args.addAll(['-color_trc', 'bt709']);
+      args.addAll(['-colorspace', 'bt709']); // 色彩空间：Rec.709（SDR）
+      args.addAll(['-color_primaries', 'bt709']); // 色域：Rec.709
+      args.addAll(['-color_trc', 'bt709']); // 传输特性：Rec.709
       print('[色彩空间] 使用 bt709 (SDR)');
     }
 
+    // === 码率控制（可选）===
     if (videoBitrate > 0) {
-      args.addAll(['-b:v', '${videoBitrate}k']);
+      args.addAll(['-b:v', '${videoBitrate}k']); // 目标视频码率（kbps），与 CRF 配合限制最大码率
     }
+
+    // === 帧率控制（可选）===
     if (!keepFps && customFps != null && customFps > 0) {
-      args.addAll(['-r', customFps.toStringAsFixed(0)]);
+      args.addAll(['-r', customFps.toStringAsFixed(0)]); // 输出帧率：30, 60, 24 等
     }
 
-    // 音频编码
-    args.addAll(['-c:a', 'aac', '-b:a', '${audioKbps}k', '-ac', '2']);
+    // === 音频编码参数 ===
+    args.addAll([
+      '-c:a', 'aac', // 音频编码器：AAC（最佳兼容性）
+      '-b:a', '${audioKbps}k', // 音频码率：96(低) 128(标准) 192(高) 256(无损级)
+      '-ac', '2', // 声道数：2（立体声）
+    ]);
 
-    // ✅ 保留字幕流（如果有）
-    args.addAll(['-c:s', 'mov_text']);
+    // === 字幕流处理 ===
+    args.addAll(['-c:s', 'mov_text']); // 字幕编码器：MOV 兼容格式（如果输入有字幕）
 
-    // ✅ iOS 兼容性优化
-    args.addAll(['-tag:v', videoTag]); // 视频标签（avc1 或 hvc1）
-    args.addAll(['-movflags', 'use_metadata_tags+faststart']); // 元数据 + 流式播放
+    // === iOS 兼容性优化 ===
+    args.addAll(['-tag:v', videoTag]); // 视频标签：hvc1(HEVC) 或 avc1(H.264)，确保 iOS 相册正确识别
+    args.addAll(['-movflags', 'use_metadata_tags+faststart']); // use_metadata_tags: 保留 QuickTime 元数据 | faststart: moov 原子前置，支持流媒体播放
 
-    // 像素格式：HEVC 支持 10-bit，H.264 使用 8-bit
+    // === 像素格式 ===
     if (isHevc) {
-      // HEVC：保留原始像素格式（可能是 yuv420p10le for HDR）
-      // FFmpeg 会自动选择合适的像素格式
+      // HEVC：自动选择像素格式（可能是 yuv420p10le for 10-bit HDR）
     } else {
-      // H.264：使用 yuv420p (8-bit)
+      // H.264：使用 yuv420p（YUV 4:2:0 8-bit，最佳兼容性）
       args.addAll(['-pix_fmt', 'yuv420p']);
     }
 
-    args.add(_q(outputPath));
+    // === 输出路径 ===
+    args.add(_q(outputPath)); // 输出文件路径
 
     return args.join(' ');
   }

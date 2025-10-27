@@ -24,7 +24,7 @@ dependencies:
   path: ^1.9.0
   cupertino_icons: ^1.0.8
   remixicon: ^1.4.1
-  ffmpeg_kit_flutter_new: ^3.2.0
+  ffmpeg_kit_flutter_new_min_gpl: ^2.1.1
   uuid: ^4.5.1
 
 dev_dependencies:

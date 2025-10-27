@@ -1,7 +1,9 @@
+import 'package:equatable/equatable.dart';
+
 import '../utils.dart';
 
 /// 视频数据模型 - 表示可压缩视频的核心信息
-class VideoModel {
+class VideoModel extends Equatable {
   /// 视频唯一标识符（来自相册系统的ID）
   final String id;
 
@@ -78,4 +80,15 @@ class VideoModel {
       isLocallyAvailable: isLocallyAvailable ?? this.isLocallyAvailable,
     );
   }
+
+  @override
+  List<Object?> get props => [
+        id,
+        duration,
+        width,
+        height,
+        sizeBytes,
+        creationDate,
+        isLocallyAvailable,
+      ];
 }
