@@ -106,6 +106,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     final videoInfos = videos
         .map((video) => VideoCompressionInfo(
               video: video,
+              // 如果视频本地可用，则状态为等待压缩，否则为等待下载
               status: video.isLocallyAvailable ? VideoCompressionStatus.waiting : VideoCompressionStatus.waitingDownload,
               progress: 0.0,
             ))
