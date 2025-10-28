@@ -78,6 +78,9 @@ class VideoCompressionInfo extends Equatable {
   /// 压缩状态
   final VideoCompressionStatus status;
 
+  /// 压缩会话 ID
+  final int? sessionId;
+
   /// 压缩进度 (0.0-1.0)
   final double progress;
 
@@ -96,6 +99,7 @@ class VideoCompressionInfo extends Equatable {
   const VideoCompressionInfo({
     required this.video,
     this.status = VideoCompressionStatus.waiting,
+    this.sessionId,
     this.progress = 0.0,
     this.errorMessage,
     this.estimatedTimeRemaining,
@@ -107,6 +111,7 @@ class VideoCompressionInfo extends Equatable {
     VideoModel? video,
     VideoCompressionStatus? status,
     double? progress,
+    int? sessionId,
     String? errorMessage,
     int? estimatedTimeRemaining,
     int? compressedSize,
@@ -116,6 +121,7 @@ class VideoCompressionInfo extends Equatable {
       video: video ?? this.video,
       status: status ?? this.status,
       progress: progress ?? this.progress,
+      sessionId: sessionId ?? this.sessionId,
       errorMessage: errorMessage ?? this.errorMessage,
       estimatedTimeRemaining: estimatedTimeRemaining ?? this.estimatedTimeRemaining,
       compressedSize: compressedSize ?? this.compressedSize,
@@ -187,6 +193,7 @@ class VideoCompressionInfo extends Equatable {
   List<Object?> get props => [
         video,
         status,
+        sessionId,
         progress,
         errorMessage,
         estimatedTimeRemaining,
