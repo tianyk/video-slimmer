@@ -133,33 +133,34 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   /// 调度下载任务
   Future<void> _scheduleDownloads() async {
-    // while (_isRunning) {
-    //   // 获取一个待下载的视频 ID
-    //   final videoId = await _videoIdsToDownload.take();
-    //   try {
-    //     final videoInfo = state.videos.firstWhere((v) => v.video.id == videoId);
-    //     // 如果视频状态为等待下载，则开始下载
-    //     if (videoInfo.status == VideoCompressionStatus.waitingDownload) {
-    //       // 更新视频状态为正在下载
-    //       _updateVideoStatus(videoId, VideoCompressionStatus.downloading);
-    //       // 获取视频文件路径，触发下载，下载完成后会自动更新视频状态为等待压缩
-    //       await _downloadVideo(videoInfo.video.id);
+    while (_isRunning) {
+      // 获取一个待下载的视频 ID
+      final videoId = await _videoIdsToDownload.take();
+      try {
+        final videoInfo = state.videos.firstWhere((v) => v.video.id == videoId);
+        // 如果视频状态为等待下载，则开始下载
+        if (videoInfo.status == VideoCompressionStatus.waitingDownload) {
+          // 更新视频状态为正在下载
+          _updateVideoStatus(videoId, VideoCompressionStatus.downloading);
+          // 获取视频文件路径，触发下载，下载完成后会自动更新视频状态为等待压缩
+          // 使用统一方法，会自动从 state.videos 中查找缓存的路径
+          await _getVideoFilePath(videoInfo.video.id);
 
-    //       // 这里还要修改 isLocallyAvailable 为 true 和状态为等待压缩
-    //       final updatedVideos = state.videos.map((v) {
-    //         if (v.video.id == videoId) {
-    //           return v.copyWith(video: v.video.copyWith(isLocallyAvailable: true), status: VideoCompressionStatus.waiting);
-    //         }
-    //         return v;
-    //       }).toList();
-    //       emit(state.copyWith(videos: updatedVideos));
-    //     }
-    //   } catch (e) {
-    //     print('处理下载任务失败: $e');
-    //     // 如果下载任务失败，则更新视频状态为错误
-    //     _updateVideoStatus(videoId, VideoCompressionStatus.error, errorMessage: e.toString());
-    //   }
-    // }
+          // 这里还要修改 isLocallyAvailable 为 true和状态为等待压缩
+          final updatedVideos = state.videos.map((v) {
+            if (v.video.id == videoId) {
+              return v.copyWith(video: v.video.copyWith(isLocallyAvailable: true), status: VideoCompressionStatus.waiting);
+            }
+            return v;
+          }).toList();
+          emit(state.copyWith(videos: updatedVideos));
+        }
+      } catch (e) {
+        print('处理下载任务失败: $e');
+        // 如果下载任务失败，则更新视频状态为错误
+        _updateVideoStatus(videoId, VideoCompressionStatus.error, errorMessage: e.toString());
+      }
+    }
   }
 
   /// 调度压缩任务
@@ -171,12 +172,15 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
         if (videoInfo.status == VideoCompressionStatus.waiting) {
           // 更新视频状态为正在压缩
           _updateVideoStatus(videoId, VideoCompressionStatus.compressing);
+
           // 开始压缩视频
           final outputPath = await _runFfmpegForVideo(videoInfo);
           // 获取压缩后文件大小
           final compressedSize = await _readFileSize(outputPath);
           // 更新视频状态为已完成
           _updateVideoStatus(videoId, VideoCompressionStatus.completed, progress: 1.0, outputPath: outputPath, compressedSize: compressedSize);
+          // 删除原始视频
+          // await _deleteOriginalVideo(videoInfo.video.id);
         }
       } catch (e) {
         print('处理视频压缩失败: $e');
@@ -216,44 +220,65 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     emit(state.copyWith(videos: updatedVideos));
   }
 
-  /// 下载视频
-  Future<String> _downloadVideo(String videoId) async {
-    final assetEntity = await AssetEntity.fromId(videoId);
-    if (assetEntity == null) throw Exception('无法找到视频资源: $videoId');
+  /// 删除原始视频
+  Future<void> _deleteOriginalVideo(String videoId) async {}
 
-    // 获取视频文件，触发下载
-    final file = await assetEntity.originFile;
-    if (file == null) throw Exception('无法获取视频文件');
-
-    return file.absolute.path;
-  }
-
-  /// 从视频 ID 获取文件路径
+  /// 获取视频文件路径（统一入口，避免重复调用 originFile）
   ///
-  /// 使用 originFile 以保留完整的元数据信息：
+  /// 工作流程：
+  /// 1. 从 state.videos 中查找对应视频的 originalFilePath
+  /// 2. 如果已缓存，直接返回（避免重复调用 originFile）
+  /// 3. 如果未缓存，调用 assetEntity.originFile 获取文件路径
+  /// 4. 将获取到的路径保存到 state.videos 中，供后续使用
+  ///
+  /// 使用 originFile 的优势（保留完整元数据）：
   /// - GPS 坐标（拍摄地点）
-  /// - 拍摄时间
-  /// - 相机信息
-  /// - EXIF 数据
+  /// - 拍摄时间（创建时间、修改时间）
+  /// - 相机信息（设备型号、镜头参数）
+  /// - EXIF 数据（ISO、光圈、快门速度等）
   ///
-  /// 注意：会将文件复制到应用临时目录
+  /// 注意事项：
+  /// - originFile 会将文件复制到应用临时目录
+  /// - 对于 iCloud 视频，会触发下载（可能耗时较长）
+  /// - 方法内部会自动更新 state，调用者无需手动更新 originalFilePath
+  ///
+  /// 参数：
+  /// - videoId: 视频的唯一标识符
+  ///
+  /// 返回：
+  /// - 视频文件的绝对路径，如果已缓存则立即返回，否则获取后返回
   Future<String?> _getVideoFilePath(String videoId) async {
+    // 从 state.videos 中查找缓存的路径
+    final videoInfo = state.videos.firstWhere(
+      (v) => v.video.id == videoId,
+      orElse: () => throw Exception('无法找到视频信息: $videoId'),
+    );
+
+    // 如果已有缓存路径，直接返回
+    if (videoInfo.originalFilePath != null) {
+      return videoInfo.originalFilePath;
+    }
+
     final assetEntity = await AssetEntity.fromId(videoId);
     if (assetEntity == null) {
       throw Exception('无法找到视频资源: $videoId');
     }
 
-    // 检查是否本地可用
-    final isLocallyAvailable = await assetEntity.isLocallyAvailable();
-    if (!isLocallyAvailable) {
-      throw Exception('视频未下载到本地，无法压缩');
-    }
-
     // 使用 originFile 获取包含完整元数据的文件
+    // 注意：这个调用可能会触发从 iCloud 下载或复制文件到临时目录
     final file = await assetEntity.originFile;
     if (file == null) {
       throw Exception('无法获取视频文件');
     }
+
+    // 更新 state.videos 中的原始文件路径
+    final updatedVideos = state.videos.map((v) {
+      if (v.video.id == videoId) {
+        return v.copyWith(originalFilePath: file.absolute.path);
+      }
+      return v;
+    }).toList();
+    emit(state.copyWith(videos: updatedVideos));
 
     return file.absolute.path;
   }
@@ -267,7 +292,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       if (_compressionConfig == null) throw Exception('无有效的压缩配置');
 
       // 从 videoId 获取文件路径
-      final String? inputPath = await _getVideoFilePath(videoInfo.video.id);
+      final inputPath = await _getVideoFilePath(videoInfo.video.id);
       if (inputPath == null) throw Exception('无法获取视频文件路径');
 
       final String outputPath = await _buildOutputPath(inputPath);

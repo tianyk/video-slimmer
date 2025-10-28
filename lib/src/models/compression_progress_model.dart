@@ -93,6 +93,9 @@ class VideoCompressionInfo extends Equatable {
   /// 压缩后文件大小（字节）
   final int? compressedSize;
 
+  // 原始文件路径
+  final String? originalFilePath;
+
   /// 压缩后文件路径
   final String? outputPath;
 
@@ -104,6 +107,7 @@ class VideoCompressionInfo extends Equatable {
     this.errorMessage,
     this.estimatedTimeRemaining,
     this.compressedSize,
+    this.originalFilePath,
     this.outputPath,
   });
 
@@ -115,6 +119,7 @@ class VideoCompressionInfo extends Equatable {
     String? errorMessage,
     int? estimatedTimeRemaining,
     int? compressedSize,
+    String? originalFilePath,
     String? outputPath,
   }) {
     return VideoCompressionInfo(
@@ -125,6 +130,7 @@ class VideoCompressionInfo extends Equatable {
       errorMessage: errorMessage ?? this.errorMessage,
       estimatedTimeRemaining: estimatedTimeRemaining ?? this.estimatedTimeRemaining,
       compressedSize: compressedSize ?? this.compressedSize,
+      originalFilePath: originalFilePath ?? this.originalFilePath,
       outputPath: outputPath ?? this.outputPath,
     );
   }
@@ -198,6 +204,7 @@ class VideoCompressionInfo extends Equatable {
         errorMessage,
         estimatedTimeRemaining,
         compressedSize,
+        originalFilePath,
         outputPath,
       ];
 }
