@@ -20,8 +20,7 @@ class CompressionProgressScreen extends StatefulWidget {
   });
 
   @override
-  State<CompressionProgressScreen> createState() =>
-      _CompressionProgressScreenState();
+  State<CompressionProgressScreen> createState() => _CompressionProgressScreenState();
 }
 
 class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
@@ -53,15 +52,18 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
     return BlocProvider.value(
       value: _progressCubit,
       child: BlocBuilder<CompressionProgressCubit, CompressionProgressState>(
-        buildWhen: (previous, current) =>
-            previous.hasActiveCompression != current.hasActiveCompression,
         builder: (context, state) {
           return PopScope(
+            // 没有活跃任务时允许直接返回，有活跃任务时阻止返回
             canPop: !state.hasActiveCompression,
             onPopInvokedWithResult: (bool didPop, Object? result) async {
-              // 如果页面没有弹出且有活跃任务，显示确认对话框
-              if (!didPop && state.hasActiveCompression) {
-                await _showExitConfirmationAndHandle(context);
+              // 如果返回被阻止（didPop = false），检查是否有活跃任务
+              if (!didPop) {
+                // 重新获取最新状态
+                final currentState = _progressCubit.state;
+                if (currentState.hasActiveCompression) {
+                  await _showExitConfirmation(context);
+                }
               }
             },
             child: Scaffold(
@@ -72,28 +74,19 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
                   onPressed: () => _handleBackNavigation(context),
                 ),
                 actions: [
-                  BlocBuilder<CompressionProgressCubit,
-                      CompressionProgressState>(
-                    builder: (context, state) {
-                      if (state.hasActiveCompression) {
-                        return IconButton(
-                          icon: const Icon(Icons.stop),
-                          onPressed: () => _showCancelAllConfirmation(context),
-                          tooltip: '停止所有压缩',
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    },
-                  ),
+                  if (state.hasActiveCompression)
+                    IconButton(
+                      icon: const Icon(Icons.stop),
+                      onPressed: () => _showCancelAllConfirmation(context),
+                      tooltip: '停止所有压缩',
+                    ),
                 ],
               ),
               body: Stack(
                 children: [
                   // 主要内容区域
-                  BlocBuilder<CompressionProgressCubit,
-                      CompressionProgressState>(
-                    buildWhen: (previous, current) =>
-                        previous.videos.length != current.videos.length,
+                  BlocBuilder<CompressionProgressCubit, CompressionProgressState>(
+                    buildWhen: (previous, current) => previous.videos.length != current.videos.length,
                     builder: (context, state) {
                       return _buildVideoList(state.videos);
                     },
@@ -204,8 +197,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
   }
 
   /// 显示取消视频确认对话框
-  void _showCancelVideoConfirmation(
-      BuildContext context, VideoCompressionInfo videoInfo) {
+  void _showCancelVideoConfirmation(BuildContext context, VideoCompressionInfo videoInfo) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -215,9 +207,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
           style: TextStyle(color: AppTheme.prosperityGold),
         ),
         content: Text(
-          videoInfo.status == VideoCompressionStatus.compressing
-              ? '确定要取消正在压缩的视频吗？\n当前进度将丢失。'
-              : '确定要从队列中移除这个视频吗？',
+          videoInfo.status == VideoCompressionStatus.compressing ? '确定要取消正在压缩的视频吗？\n当前进度将丢失。' : '确定要从队列中移除这个视频吗？',
           style: const TextStyle(color: AppTheme.prosperityLightGold),
         ),
         actions: [
@@ -282,8 +272,8 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
     );
   }
 
-  /// 显示退出确认对话框并处理（用于 PopScope 的异步回调）
-  Future<void> _showExitConfirmationAndHandle(BuildContext context) async {
+  /// 显示退出确认对话框并处理退出逻辑
+  Future<void> _showExitConfirmation(BuildContext context) async {
     final shouldExit = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -321,45 +311,6 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
       Navigator.of(context).pop();
     }
   }
-
-  /// 显示退出确认对话框（用于 AppBar 返回按钮）
-  void _showExitConfirmation(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.prosperityGray,
-        title: const Text(
-          '确认退出',
-          style: TextStyle(color: AppTheme.prosperityGold),
-        ),
-        content: const Text(
-          '压缩任务正在进行中。\n退出将取消所有未完成的压缩。',
-          style: TextStyle(color: AppTheme.prosperityLightGold),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              '继续压缩',
-              style: TextStyle(color: AppTheme.prosperityLightGold),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _progressCubit.cancelAllCompression();
-              Navigator.of(context).pop();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('退出'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 /// 视频操作枚举
@@ -381,8 +332,7 @@ class _VideoProgressItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocSelector<CompressionProgressCubit, CompressionProgressState,
-        VideoCompressionInfo?>(
+    return BlocSelector<CompressionProgressCubit, CompressionProgressState, VideoCompressionInfo?>(
       selector: (state) {
         try {
           return state.videos.firstWhere((v) => v.video.id == videoId);
@@ -485,8 +435,7 @@ class _VideoProgressItem extends StatelessWidget {
                           const SizedBox(width: 4),
                           Text(
                             // 视频创建时间，格式化显示
-                            formatDateToFriendlyString(
-                                videoInfo.video.creationDate),
+                            formatDateToFriendlyString(videoInfo.video.creationDate),
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey[600],
@@ -504,9 +453,7 @@ class _VideoProgressItem extends StatelessWidget {
             ),
 
             // 进度信息
-            if (videoInfo.status == VideoCompressionStatus.compressing ||
-                (videoInfo.status == VideoCompressionStatus.completed &&
-                    videoInfo.progress > 0)) ...[
+            if (videoInfo.status == VideoCompressionStatus.compressing || (videoInfo.status == VideoCompressionStatus.completed && videoInfo.progress > 0)) ...[
               const SizedBox(height: 12),
               _buildProgressSection(videoInfo),
             ],
@@ -524,9 +471,7 @@ class _VideoProgressItem extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              videoInfo.status == VideoCompressionStatus.compressing
-                  ? '压缩进度'
-                  : '已完成',
+              videoInfo.status == VideoCompressionStatus.compressing ? '压缩进度' : '已完成',
               style: const TextStyle(
                 fontSize: 14,
                 color: AppTheme.prosperityLightGold,

@@ -9,8 +9,7 @@ class VideoThumbnail extends StatefulWidget {
   final int width;
   final int height;
 
-  const VideoThumbnail(
-      {super.key, required this.id, this.width = 80, this.height = 60});
+  const VideoThumbnail({super.key, required this.id, this.width = 80, this.height = 60});
 
   @override
   State<VideoThumbnail> createState() => _VideoThumbnailState();
