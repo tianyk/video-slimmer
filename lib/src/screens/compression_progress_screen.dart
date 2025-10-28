@@ -507,6 +507,7 @@ class _VideoProgressItem extends StatelessWidget {
           backgroundColor: AppTheme.prosperityLightGray.withValues(alpha: 0.3),
           valueColor: AlwaysStoppedAnimation<Color>(_getStatusColor(videoInfo)),
           minHeight: 6,
+          borderRadius: BorderRadius.circular(3),
         ),
       ],
     );

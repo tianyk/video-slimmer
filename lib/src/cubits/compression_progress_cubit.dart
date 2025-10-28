@@ -684,8 +684,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   /// - 优化 VideoToolbox 参数（去掉不必要的 hwaccel_output_format）
   /// - 自动选择 .mov 输出容器（iOS 最兼容）
   /// - 合并 movflags，确保 faststart 与 metadata 同时生效
-  /// - 删除 codec:d copy（防止 data stream 报错）
-  /// - 动态 HDR 参数，仅在 HEVC 软件编码时保留
+  /// - 保留 data streams（Dolby Vision 等 HDR 元数据）
+  /// - 保留色彩空间信息（HDR 视频）
   Future<String> _buildFfmpegCommand({
     required String inputPath,
     required String outputPath,
@@ -700,6 +700,20 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     // 检测原始编码格式
     final String? originalCodec = await _detectVideoCodec(inputPath);
     print('[视频编码] 原始编码: $originalCodec');
+
+    // 检测色彩空间信息（用于 HDR 视频）
+    final VideoMetadata? metadata = await _getVideoMetadata(inputPath);
+    final String? colorSpace = metadata?.videoStream?.colorSpace;
+    final String? colorPrimaries = metadata?.videoStream?.colorPrimaries;
+    final String? colorTransfer = metadata?.videoStream?.colorTransfer;
+    final bool isHdrVideo = colorSpace == 'bt2020nc' || colorTransfer == 'arib-std-b67' || colorTransfer == 'smpte2084';
+
+    if (isHdrVideo) {
+      print('[HDR 检测] 检测到 HDR 视频');
+      print('[色彩空间] $colorSpace');
+      print('[色域] $colorPrimaries');
+      print('[传输特性] $colorTransfer');
+    }
 
     final bool isHevc = originalCodec?.contains('hevc') == true || originalCodec?.contains('h265') == true;
     final bool useHardwareAcceleration = _shouldUseHardwareAcceleration();
@@ -746,7 +760,12 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     args.addAll(['-noautorotate', '-i', _q(inputPath)]);
 
     // === 流映射 ===
-    args.addAll(['-map', '0:v:0', '-map', '0:a:0?']);
+    // 映射视频流、音频流，并尝试保留 data streams（包含 Dolby Vision 等 HDR 元数据）
+    args.addAll([
+      '-map', '0:v:0',
+      '-map', '0:a:0?',
+      '-map', '0:d?', // 可选：复制 data streams（Dolby Vision 元数据）
+    ]);
 
     // === 元数据保留 ===
     args.addAll([
@@ -765,6 +784,23 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
         '-b:v', videoBitrate > 0 ? '${videoBitrate}k' : '0',
         '-quality', 'high', // 提高质量（realtime/medium/high）
       ]);
+
+      // 对于 HDR 视频，尝试保留色彩空间信息
+      // 注意：VideoToolbox 对 Dolby Vision 的支持有限，这里主要保留基础色彩参数
+      if (isHdrVideo) {
+        if (colorSpace != null) {
+          args.addAll(['-colorspace', colorSpace]);
+        }
+        if (colorPrimaries != null) {
+          args.addAll(['-color_primaries', colorPrimaries]);
+        }
+        if (colorTransfer != null) {
+          args.addAll(['-color_trc', colorTransfer]);
+        }
+        // 保留 TV range（limited range）
+        args.addAll(['-color_range', 'tv']);
+        print('[色彩保留] 已添加 HDR 色彩空间参数');
+      }
     } else {
       args.addAll([
         '-c:v',
