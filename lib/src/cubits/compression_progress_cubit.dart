@@ -35,57 +35,8 @@ class CompressionProgressState extends Equatable {
     );
   }
 
-  /// 总体进度 (0.0-1.0)
-  double get overallProgress {
-    if (videos.isEmpty) return 0.0;
-    double totalProgress = 0.0;
-    for (final video in videos) {
-      if (video.status == VideoCompressionStatus.completed) {
-        totalProgress += 1.0;
-      } else if (video.status == VideoCompressionStatus.compressing) {
-        totalProgress += video.progress;
-      }
-    }
-    return totalProgress / videos.length;
-  }
-
-  /// 获取当前正在压缩的视频
-  VideoCompressionInfo? get currentCompressingVideo {
-    try {
-      return videos.firstWhere(
-        (video) => video.status == VideoCompressionStatus.compressing,
-      );
-    } catch (e) {
-      return null;
-    }
-  }
-
-  /// 获取等待中的视频数量
-  int get waitingCount => videos.where((v) => v.status == VideoCompressionStatus.waiting).length;
-
-  /// 获取等待下载的视频数量
-  int get waitingDownloadCount => videos.where((v) => v.status == VideoCompressionStatus.waitingDownload).length;
-
   /// 获取已完成的视频数量
   int get completedCount => videos.where((v) => v.status == VideoCompressionStatus.completed).length;
-
-  /// 获取已取消的视频数量
-  int get cancelledCount => videos.where((v) => v.status == VideoCompressionStatus.cancelled).length;
-
-  /// 获取失败的视频数量
-  int get errorCount => videos.where((v) => v.status == VideoCompressionStatus.error).length;
-
-  /// 获取正在下载的视频数量
-  int get downloadingCount => videos.where((v) => v.status == VideoCompressionStatus.downloading).length;
-
-  /// 获取正在下载的视频列表
-  List<VideoCompressionInfo> get downloadingVideos => videos.where((v) => v.status == VideoCompressionStatus.downloading).toList();
-
-  /// 是否有下载任务
-  bool get hasDownloading => downloadingCount > 0;
-
-  /// 总视频数量
-  int get totalCount => videos.length;
 
   /// 是否所有视频都已处理
   bool get isAllProcessed {
@@ -93,10 +44,7 @@ class CompressionProgressState extends Equatable {
   }
 
   /// 是否有正在进行的压缩
-  bool get hasActiveCompression => currentCompressingVideo != null;
-
-  /// 进度文本
-  String get progressText => '$completedCount / $totalCount';
+  bool get hasActiveCompression => videos.any((video) => video.status == VideoCompressionStatus.compressing);
 
   /// 计算总原始大小
   int get totalOriginalSize => videos.fold(0, (sum, video) => sum + video.video.sizeBytes);
@@ -154,16 +102,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     required CompressionConfig config,
   }) {
     _compressionConfig = config;
-
-    print('========== 初始化压缩任务 ==========');
-    print('视频数量: ${videos.length}');
-    print('压缩预设: ${_getPresetDisplayName(config.preset)}');
-    print('CRF值: ${config.customCRF ?? "默认"}');
-    print('码率: ${config.customBitrate ?? "默认"}kbps');
-    print('帧率: ${config.keepOriginalFrameRate ? "保持原帧率" : "${config.customFrameRate ?? "默认"}fps"}');
-    print('音频: ${config.keepOriginalAudio ? "保持原音频" : "压缩音频 ${config.audioQuality}kbps"}');
-    final totalSize = videos.fold(0, (sum, v) => sum + v.sizeBytes);
-    print('总原始大小: ${_formatBytes(totalSize)}');
 
     final videoInfos = videos
         .map((video) => VideoCompressionInfo(
