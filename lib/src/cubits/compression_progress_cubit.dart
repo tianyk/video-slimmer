@@ -77,24 +77,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   /// 当前压缩配置
   CompressionConfig? _compressionConfig;
 
-  /// 模拟压缩进度的定时器（FFmpeg接入后仅用于兜底）
-  Timer? _progressTimer;
-
-  /// 当前压缩视频的开始时间
-  DateTime? _currentVideoStartTime;
-
   /// 当前FFmpeg会话是否在运行（用于取消）
   bool _isRunningSession = false;
-
-  /// 存储所有下载任务的 Future
-  final Map<String, Future<void>> _downloadTasks = {};
-
-  @override
-  Future<void> close() {
-    _progressTimer?.cancel();
-    _downloadTasks.clear();
-    return super.close();
-  }
 
   /// 初始化压缩任务
   void initializeTask({
@@ -225,8 +209,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   /// 开始压缩指定视频
   void _startVideoCompression(VideoCompressionInfo videoInfo) {
-    _currentVideoStartTime = DateTime.now();
-
     print('======== 开始压缩视频 ========');
     print('视频: ${videoInfo.video.id}');
     print('原始大小: ${videoInfo.video.fileSize}');
@@ -318,14 +300,12 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           final ReturnCode? returnCode = await session.getReturnCode();
           if (ReturnCode.isSuccess(returnCode)) {
             final int compressedSize = await _readFileSize(outputPath);
-            final Duration elapsed = _currentVideoStartTime != null ? DateTime.now().difference(_currentVideoStartTime!) : Duration.zero;
 
             print('======== 压缩成功 ========');
             print('视频: ${videoInfo.video.id}');
             print('原始大小: ${videoInfo.video.fileSize}');
             print('压缩后大小: ${_formatBytes(compressedSize)}');
             print('压缩比: ${((videoInfo.video.sizeBytes - compressedSize) / videoInfo.video.sizeBytes * 100).toStringAsFixed(1)}%');
-            print('耗时: ${elapsed.inMinutes}分${elapsed.inSeconds % 60}秒');
             print('输出路径: $outputPath');
             print('=======================');
 
@@ -336,7 +316,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
             _processNextVideo();
           } else if (ReturnCode.isCancel(returnCode)) {
             print('[FFmpeg] 压缩被取消: ${videoInfo.video.id}');
-            // 已在取消逻辑里更新状态，这里确保队列继续
             _processNextVideo();
           } else {
             final String logs = (await session.getAllLogsAsString()) ?? '未知错误';
@@ -358,27 +337,29 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           print('[FFmpeg $levelStr] $logMessage');
         },
         (Statistics statistics) {
-          // 进度：统计的time单位为毫秒
+          // ========== FFmpeg 统计信息回调 ==========
+          // 已处理的视频时长（单位：毫秒）
+          // 注意：这是视频内容的时长，不是实际消耗的时钟时间
           final int timeMs = statistics.getTime();
-          final double totalMs = max(videoInfo.video.duration * 1000.0, 1.0);
-          final double progress = (timeMs / totalMs).clamp(0.0, 1.0);
-          final Duration elapsed = _currentVideoStartTime != null ? DateTime.now().difference(_currentVideoStartTime!) : Duration.zero;
-          final Duration remaining = progress > 0 ? Duration(milliseconds: ((elapsed.inMilliseconds / progress) - elapsed.inMilliseconds).round()) : Duration.zero;
 
-          // 详细的统计信息日志
+          // 视频总时长（单位：毫秒）
+          final double totalMs = max(videoInfo.video.duration * 1000.0, 1.0);
+
+          // 压缩进度（0.0 - 1.0）
+          // 计算公式：已处理时长 / 总时长
+          final double progress = (timeMs / totalMs).clamp(0.0, 1.0);
+
+          // FFmpeg 处理速度倍率（例如：1.5x 表示处理速度是实时播放速度的 1.5 倍）
+          // 用于计算预估剩余时间
           final double speed = statistics.getSpeed();
-          final double bitrate = statistics.getBitrate();
-          final int frame = statistics.getVideoFrameNumber();
-          final double fps = statistics.getVideoFps();
-          final String size = statistics.getSize().toString();
+
+          // 预估剩余时间
+          // 计算公式：剩余视频时长 / 处理速度
+          // 例如：还剩 30 秒视频，处理速度 1.5x，则需要 30/1.5 = 20 秒实际时间
+          final Duration remaining = speed > 0 ? Duration(milliseconds: ((totalMs - timeMs) / speed).round()) : Duration.zero;
 
           print('[FFmpeg 统计] 进度: ${(progress * 100).toStringAsFixed(1)}% | '
               '时间: ${(timeMs / 1000).toStringAsFixed(1)}s/${(totalMs / 1000).toStringAsFixed(1)}s | '
-              '帧数: $frame | '
-              '速度: ${speed.toStringAsFixed(2)}x | '
-              '码率: ${bitrate.toStringAsFixed(0)}kbps | '
-              '输出大小: $size | '
-              'FPS: ${fps.toStringAsFixed(1)} | '
               '预计剩余: ${remaining.inMinutes}分${remaining.inSeconds % 60}秒');
 
           _updateVideoProgress(videoInfo.video.id, progress, remaining.inSeconds);
@@ -872,12 +853,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     final video = state.videos.firstWhere((v) => v.video.id == videoId);
 
     if (video.status == VideoCompressionStatus.downloading) {
-      // 取消下载：移除任务引用（Future 会自然完成或失败）
-      _downloadTasks.remove(videoId);
       print('[取消下载] ${video.video.id}');
     } else if (video.status == VideoCompressionStatus.compressing) {
-      // 取消压缩
-      _progressTimer?.cancel();
       if (_isRunningSession) {
         FFmpegKit.cancel();
       }
@@ -922,11 +899,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   /// 取消所有压缩
   void cancelAllCompression() {
-    _progressTimer?.cancel();
-
-    // 取消所有下载
-    _downloadTasks.clear();
-
     // 取消 FFmpeg
     if (_isRunningSession) {
       FFmpegKit.cancel();
