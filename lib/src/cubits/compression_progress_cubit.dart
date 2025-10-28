@@ -817,6 +817,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     emit(state.copyWith(videos: updatedVideos));
   }
 
+  /// 标记视频压缩失败
   void _failCurrentVideo(VideoCompressionInfo videoInfo, String message) {
     final List<VideoCompressionInfo> updatedVideos = state.videos.map((video) {
       if (video.video.id == videoInfo.video.id) {
