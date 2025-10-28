@@ -756,15 +756,18 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   void cancelVideo(String videoId) {
     final video = state.videos.firstWhere((v) => v.video.id == videoId);
 
-    if (video.status == VideoCompressionStatus.downloading) {
-      print('[取消下载] ${video.video.id}');
+    if (video.status == VideoCompressionStatus.waitingDownload) {
+      print('[取消排队下载] ${video.video.id}');
       // 从下载队列中移除视频ID
       _videoIdsToDownload.remove(videoId);
+    } else if (video.status == VideoCompressionStatus.downloading) {
+      print('[取消正在下载] ${video.video.id}');
     } else if (video.status == VideoCompressionStatus.compressing) {
       FFmpegKit.cancel(video.sessionId);
-      print('[取消压缩] ${video.video.id}');
+      print('[取消正在压缩] ${video.video.id}');
     } else if (video.status == VideoCompressionStatus.waiting) {
-      // 从队列中移除等待中的视频
+      print('[取消排队压缩] ${video.video.id}');
+      // 从压缩队列中移除视频ID
       _videoIdsToCompress.remove(videoId);
     }
 
