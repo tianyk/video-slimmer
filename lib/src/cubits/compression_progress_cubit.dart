@@ -17,6 +17,7 @@ import '../libs/async_queue.dart';
 import '../models/compression_model.dart';
 import '../models/compression_progress_model.dart';
 import '../models/video_model.dart';
+import '../utils.dart';
 
 /// 压缩进度状态
 class CompressionProgressState extends Equatable {
@@ -32,6 +33,14 @@ class CompressionProgressState extends Equatable {
   }) {
     return CompressionProgressState(
       videos: videos ?? this.videos,
+    );
+  }
+
+  // 根据视频ID获取视频压缩信息
+  VideoCompressionInfo getVideoCompressionInfoByVideoId(String videoId) {
+    return videos.firstWhere(
+      (v) => v.video.id == videoId,
+      orElse: () => throw Exception('无法找到视频信息: $videoId'),
     );
   }
 
@@ -94,24 +103,24 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   }
 
   /// 初始化压缩任务
-  void initializeTask({
+  Future<void> initializeTask({
     required List<VideoModel> videos,
     required CompressionConfig config,
-  }) {
+  }) async {
     _compressionConfig = config;
 
-    final videoInfos = videos
-        .map((video) => VideoCompressionInfo(
-              video: video,
-              // 如果视频本地可用，则状态为等待压缩，否则为等待下载
-              status: video.isLocallyAvailable ? VideoCompressionStatus.waiting : VideoCompressionStatus.waitingDownload,
-              progress: 0.0,
-            ))
-        .toList();
+    final videoInfos = await Future.wait(videos.map((video) async {
+      final isLocallyAvailable = await isVideoLocallyAvailable(video.id);
+      return VideoCompressionInfo(
+        video: video,
+        status: isLocallyAvailable ? VideoCompressionStatus.waiting : VideoCompressionStatus.waitingDownload,
+        progress: 0.0,
+      );
+    }).toList());
 
     // 将需要压缩和下载的视频 ID 添加到队列中
-    _videoIdsToCompress.addAll(videoInfos.where((info) => info.status == VideoCompressionStatus.waiting).map((info) => info.video.id));
-    _videoIdsToDownload.addAll(videoInfos.where((info) => info.status == VideoCompressionStatus.waitingDownload).map((info) => info.video.id));
+    _videoIdsToCompress.addAll(videoInfos.where((info) => info.status == VideoCompressionStatus.waiting).map((info) => info.video.id).toList());
+    _videoIdsToDownload.addAll(videoInfos.where((info) => info.status == VideoCompressionStatus.waitingDownload).map((info) => info.video.id).toList());
 
     emit(state.copyWith(videos: videoInfos));
   }
@@ -137,23 +146,17 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       // 获取一个待下载的视频 ID
       final videoId = await _videoIdsToDownload.take();
       try {
-        final videoInfo = state.videos.firstWhere((v) => v.video.id == videoId);
+        final videoInfo = state.getVideoCompressionInfoByVideoId(videoId);
         // 如果视频状态为等待下载，则开始下载
         if (videoInfo.status == VideoCompressionStatus.waitingDownload) {
           // 更新视频状态为正在下载
           _updateVideoStatus(videoId, VideoCompressionStatus.downloading);
           // 获取视频文件路径，触发下载，下载完成后会自动更新视频状态为等待压缩
           // 使用统一方法，会自动从 state.videos 中查找缓存的路径
-          await _getVideoFilePath(videoInfo.video.id);
+          await _ensureVideoFilePath(videoInfo.video.id);
 
-          // 这里还要修改 isLocallyAvailable 为 true和状态为等待压缩
-          final updatedVideos = state.videos.map((v) {
-            if (v.video.id == videoId) {
-              return v.copyWith(video: v.video.copyWith(isLocallyAvailable: true), status: VideoCompressionStatus.waiting);
-            }
-            return v;
-          }).toList();
-          emit(state.copyWith(videos: updatedVideos));
+          // 更新视频状态为等待压缩
+          _updateVideoStatus(videoId, VideoCompressionStatus.waiting, progress: 0.0);
         }
       } catch (e) {
         print('处理下载任务失败: $e');
@@ -168,11 +171,10 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     while (_isRunning) {
       final videoId = await _videoIdsToCompress.take();
       try {
-        final videoInfo = state.videos.firstWhere((v) => v.video.id == videoId);
+        final videoInfo = state.getVideoCompressionInfoByVideoId(videoId);
         if (videoInfo.status == VideoCompressionStatus.waiting) {
           // 更新视频状态为正在压缩
           _updateVideoStatus(videoId, VideoCompressionStatus.compressing);
-
           // 开始压缩视频
           final outputPath = await _runFfmpegForVideo(videoInfo);
           // 获取压缩后文件大小
@@ -180,7 +182,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           // 更新视频状态为已完成
           _updateVideoStatus(videoId, VideoCompressionStatus.completed, progress: 1.0, outputPath: outputPath, compressedSize: compressedSize);
           // 删除原始视频
-          // await _deleteOriginalVideo(videoInfo.video.id);
+          // await File(videoInfo.originalFilePath!).delete();
         }
       } catch (e) {
         print('处理视频压缩失败: $e');
@@ -220,9 +222,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     emit(state.copyWith(videos: updatedVideos));
   }
 
-  /// 删除原始视频
-  Future<void> _deleteOriginalVideo(String videoId) async {}
-
   /// 获取视频文件路径（统一入口，避免重复调用 originFile）
   ///
   /// 工作流程：
@@ -247,29 +246,22 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   ///
   /// 返回：
   /// - 视频文件的绝对路径，如果已缓存则立即返回，否则获取后返回
-  Future<String?> _getVideoFilePath(String videoId) async {
+  Future<String> _ensureVideoFilePath(String videoId) async {
     // 从 state.videos 中查找缓存的路径
-    final videoInfo = state.videos.firstWhere(
-      (v) => v.video.id == videoId,
-      orElse: () => throw Exception('无法找到视频信息: $videoId'),
-    );
+    final videoInfo = state.getVideoCompressionInfoByVideoId(videoId);
 
     // 如果已有缓存路径，直接返回
     if (videoInfo.originalFilePath != null) {
-      return videoInfo.originalFilePath;
+      return videoInfo.originalFilePath!;
     }
 
     final assetEntity = await AssetEntity.fromId(videoId);
-    if (assetEntity == null) {
-      throw Exception('无法找到视频资源: $videoId');
-    }
+    if (assetEntity == null) throw Exception('无法找到视频资源: $videoId');
 
     // 使用 originFile 获取包含完整元数据的文件
     // 注意：这个调用可能会触发从 iCloud 下载或复制文件到临时目录
     final file = await assetEntity.originFile;
-    if (file == null) {
-      throw Exception('无法获取视频文件');
-    }
+    if (file == null) throw Exception('无法获取视频文件');
 
     // 更新 state.videos 中的原始文件路径
     final updatedVideos = state.videos.map((v) {
@@ -292,9 +284,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       if (_compressionConfig == null) throw Exception('无有效的压缩配置');
 
       // 从 videoId 获取文件路径
-      final inputPath = await _getVideoFilePath(videoInfo.video.id);
-      if (inputPath == null) throw Exception('无法获取视频文件路径');
-
+      final inputPath = await _ensureVideoFilePath(videoInfo.video.id);
+      // 构建输出文件路径
       final String outputPath = await _buildOutputPath(inputPath);
 
       final String command = await _buildFfmpegCommand(
@@ -779,7 +770,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   /// 取消视频（包括下载和压缩）
   void cancelVideo(String videoId) {
-    final video = state.videos.firstWhere((v) => v.video.id == videoId);
+    final video = state.getVideoCompressionInfoByVideoId(videoId);
 
     if (video.status == VideoCompressionStatus.waitingDownload) {
       print('[取消排队下载] ${video.video.id}');
@@ -805,11 +796,13 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   }
 
   /// 重新压缩视频
-  void retryVideo(String videoId) {
+  Future<void> retryVideo(String videoId) async {
+    final isLocallyAvailable = await isVideoLocallyAvailable(videoId);
+
     final updatedVideos = state.videos.map((video) {
       if (video.video.id == videoId) {
         // 根据视频是否已下载，决定重置为等待下载还是等待压缩状态
-        final VideoCompressionStatus newStatus = video.video.isLocallyAvailable ? VideoCompressionStatus.waiting : VideoCompressionStatus.waitingDownload;
+        final VideoCompressionStatus newStatus = isLocallyAvailable ? VideoCompressionStatus.waiting : VideoCompressionStatus.waitingDownload;
 
         return video.copyWith(
           status: newStatus,
@@ -827,8 +820,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     emit(state.copyWith(videos: updatedVideos));
 
     // 根据视频是否已下载，添加到相应的队列
-    final videoInfo = state.videos.firstWhere((v) => v.video.id == videoId);
-    if (videoInfo.video.isLocallyAvailable) {
+    if (isLocallyAvailable) {
       // 已下载，添加到压缩队列
       _videoIdsToCompress.add(videoId);
     } else {

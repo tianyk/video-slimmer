@@ -448,15 +448,8 @@ class _VideoItem extends StatelessWidget {
                                 color: Colors.grey[600],
                               ),
                             ),
-                            // iCloud状态指示器。todo，改为 fature builder
-                            if (!video.isLocallyAvailable)
-                              Padding(
-                                  padding: const EdgeInsets.only(left: 8),
-                                  child: Icon(
-                                    Remix.cloud_fill,
-                                    size: 12,
-                                    color: AppTheme.prosperityGold,
-                                  )),
+                            // iCloud状态指示器。
+                            _VideoLocallyAvailableIndicator(videoId: video.id),
                           ],
                         ),
                       ],
@@ -474,6 +467,46 @@ class _VideoItem extends StatelessWidget {
             ),
           ),
         );
+      },
+    );
+  }
+}
+
+class _VideoLocallyAvailableIndicator extends StatefulWidget {
+  final String videoId;
+
+  const _VideoLocallyAvailableIndicator({required this.videoId});
+
+  @override
+  State<_VideoLocallyAvailableIndicator> createState() => _VideoLocallyAvailableIndicatorState();
+}
+
+class _VideoLocallyAvailableIndicatorState extends State<_VideoLocallyAvailableIndicator> {
+  late final Future<bool> _isVideoLocallyAvailableFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _isVideoLocallyAvailableFuture = isVideoLocallyAvailable(widget.videoId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _isVideoLocallyAvailableFuture,
+      builder: (context, snapshot) {
+        if (snapshot.hasData && snapshot.data == true) {
+          return Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Icon(
+              Remix.cloud_fill,
+              size: 12,
+              color: AppTheme.prosperityGold,
+            ),
+          );
+        } else {
+          return const SizedBox.shrink();
+        }
       },
     );
   }

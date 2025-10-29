@@ -162,12 +162,7 @@ class VideoDataCubit extends Cubit<VideoDataState> {
       );
 
       for (final videoEntity in videoAssets) {
-        final results = await Future.wait([
-          videoEntity.isLocallyAvailable(),
-          _getVideoMetadata(videoEntity.id),
-        ]);
-        final isLocallyAvailable = results[0] as bool;
-        final metadata = results[1] as Map<String, dynamic>?;
+        final metadata = await _getVideoMetadata(videoEntity.id);
 
         videos.add(VideoModel(
           id: videoEntity.id,
@@ -176,7 +171,6 @@ class VideoDataCubit extends Cubit<VideoDataState> {
           height: videoEntity.height,
           sizeBytes: metadata?['fileSize'] ?? 0,
           creationDate: videoEntity.createDateTime,
-          isLocallyAvailable: isLocallyAvailable,
         ));
       }
     }

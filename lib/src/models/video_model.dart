@@ -185,9 +185,6 @@ class VideoModel extends Equatable {
   /// 创建时间
   final DateTime creationDate;
 
-  /// 是否本地可用（已下载到设备）
-  final bool isLocallyAvailable;
-
   const VideoModel({
     required this.id,
     required this.duration,
@@ -195,7 +192,6 @@ class VideoModel extends Equatable {
     required this.height,
     required this.sizeBytes,
     required this.creationDate,
-    this.isLocallyAvailable = true,
   });
 
   /// 文件大小格式化显示（自动转换为B/KB/MB/GB）
@@ -231,7 +227,6 @@ class VideoModel extends Equatable {
     int? height,
     int? sizeBytes,
     DateTime? creationDate,
-    bool? isLocallyAvailable,
   }) {
     return VideoModel(
       id: id ?? this.id,
@@ -240,7 +235,6 @@ class VideoModel extends Equatable {
       height: height ?? this.height,
       sizeBytes: sizeBytes ?? this.sizeBytes,
       creationDate: creationDate ?? this.creationDate,
-      isLocallyAvailable: isLocallyAvailable ?? this.isLocallyAvailable,
     );
   }
 
@@ -252,6 +246,5 @@ class VideoModel extends Equatable {
         height,
         sizeBytes,
         creationDate,
-        isLocallyAvailable,
       ];
 }

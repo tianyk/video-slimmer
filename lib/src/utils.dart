@@ -1,3 +1,5 @@
+import 'package:photo_manager/photo_manager.dart';
+
 /// 星期几的中文表示
 const List<String> _weekdays = <String>['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
@@ -66,4 +68,10 @@ String formatDurationToClock(double secondsValue) {
     return '$hoursString:$minutesString:$secondsString';
   }
   return '$minutesString:$secondsString';
+}
+
+/// 获取视频是否本地可用
+Future<bool> isVideoLocallyAvailable(String videoId) async {
+  final videoEntity = await AssetEntity.fromId(videoId);
+  return videoEntity?.isLocallyAvailable() ?? false;
 }
