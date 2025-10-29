@@ -498,13 +498,13 @@ class _VideoLocallyAvailableIndicatorState extends State<_VideoLocallyAvailableI
       future: _isVideoLocallyAvailableFuture,
       builder: (context, snapshot) {
         if (snapshot.hasData && snapshot.data == true) {
+          return const SizedBox.shrink();
+        } else {
           return Icon(
             Remix.cloud_fill,
             size: 12,
             color: AppTheme.prosperityGold,
           );
-        } else {
-          return const SizedBox.shrink();
         }
       },
     );
