@@ -458,6 +458,12 @@ class _VideoProgressItem extends StatelessWidget {
               const SizedBox(height: 12),
               _buildProgressSection(videoInfo),
             ],
+
+            // 错误信息
+            if (videoInfo.status == VideoCompressionStatus.error && videoInfo.errorMessage != null) ...[
+              const SizedBox(height: 12),
+              _buildErrorSection(videoInfo),
+            ],
           ],
         ),
       ),
@@ -509,6 +515,31 @@ class _VideoProgressItem extends StatelessWidget {
           valueColor: AlwaysStoppedAnimation<Color>(_getStatusColor(videoInfo)),
           minHeight: 6,
           borderRadius: BorderRadius.circular(3),
+        ),
+      ],
+    );
+  }
+
+  /// 构建错误信息区域
+  Widget _buildErrorSection(VideoCompressionInfo videoInfo) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.error_outline,
+          color: AppTheme.prosperityLightGold,
+          size: 20,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            videoInfo.errorMessage!,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppTheme.prosperityLightGold,
+              height: 1.4,
+            ),
+          ),
         ),
       ],
     );
