@@ -413,6 +413,9 @@ class _VideoItem extends StatelessWidget {
                                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: AppTheme.prosperityGold),
                               ),
                             ),
+                            const SizedBox(width: 8),
+                            // iCloud状态指示器。
+                            _VideoLocallyAvailableIndicator(videoId: video.id),
                           ],
                         ),
                         const SizedBox(height: 4),
@@ -448,8 +451,6 @@ class _VideoItem extends StatelessWidget {
                                 color: Colors.grey[600],
                               ),
                             ),
-                            // iCloud状态指示器。
-                            _VideoLocallyAvailableIndicator(videoId: video.id),
                           ],
                         ),
                       ],
@@ -481,6 +482,7 @@ class _VideoLocallyAvailableIndicator extends StatefulWidget {
   State<_VideoLocallyAvailableIndicator> createState() => _VideoLocallyAvailableIndicatorState();
 }
 
+/// 视频本地可用状态指示器
 class _VideoLocallyAvailableIndicatorState extends State<_VideoLocallyAvailableIndicator> {
   late final Future<bool> _isVideoLocallyAvailableFuture;
 
@@ -496,13 +498,10 @@ class _VideoLocallyAvailableIndicatorState extends State<_VideoLocallyAvailableI
       future: _isVideoLocallyAvailableFuture,
       builder: (context, snapshot) {
         if (snapshot.hasData && snapshot.data == true) {
-          return Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: Icon(
-              Remix.cloud_fill,
-              size: 12,
-              color: AppTheme.prosperityGold,
-            ),
+          return Icon(
+            Remix.cloud_fill,
+            size: 12,
+            color: AppTheme.prosperityGold,
           );
         } else {
           return const SizedBox.shrink();
