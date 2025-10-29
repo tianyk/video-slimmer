@@ -8,9 +8,9 @@ import 'package:ffmpeg_kit_flutter_new/ffprobe_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/media_information_session.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:ffmpeg_kit_flutter_new/statistics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:path/path.dart' as path;
-import 'package:photo_manager/photo_manager.dart';
 import 'package:uuid/uuid.dart';
 
 import '../libs/async_queue.dart';
@@ -82,6 +82,9 @@ class CompressionProgressState extends Equatable {
 /// 压缩进度状态管理
 class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   CompressionProgressCubit() : super(const CompressionProgressState());
+
+  // MethodChannel for iOS native API
+  static const _platform = MethodChannel('cc.kekek.videoslimmer');
 
   /// 当前压缩配置
   CompressionConfig? _compressionConfig;
@@ -156,6 +159,10 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           await _ensureVideoFilePath(videoInfo.video.id);
           // 更新视频状态为等待压缩
           _updateVideoStatus(videoId, VideoCompressionStatus.waiting, progress: 0.0);
+          print('========== 下载视频: $videoId 完成 ==========');
+          // 添加到压缩队列
+          _videoIdsToCompress.add(videoId);
+          print('========== 添加到压缩队列: $videoId ==========');
         }
       } catch (e) {
         print('处理下载任务失败: $e');
@@ -181,8 +188,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           final compressedSize = await _readFileSize(outputPath);
           // 更新视频状态为已完成
           _updateVideoStatus(videoId, VideoCompressionStatus.completed, progress: 1.0, outputPath: outputPath, compressedSize: compressedSize);
-          // 删除原始视频
-          // await File(videoInfo.originalFilePath!).delete();
         }
       } catch (e) {
         print('处理视频压缩失败: $e');
@@ -222,23 +227,54 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     emit(state.copyWith(videos: updatedVideos));
   }
 
-  /// 获取视频文件路径（统一入口，避免重复调用 originFile）
+  /// 调用原生方法获取视频文件路径
+  ///
+  /// 此方法封装了与 iOS 原生代码的通信逻辑
+  ///
+  /// 参数：
+  /// - videoId: PHAsset 的 localIdentifier
+  ///
+  /// 返回：
+  /// - 视频文件的绝对路径
+  ///
+  /// 异常：
+  /// - PlatformException: 原生方法调用失败
+  /// - Exception: 其他错误
+  Future<String> _getVideoFilePath(String videoId) async {
+    try {
+      final filePath = await _platform.invokeMethod<String>(
+        'getVideoFilePath',
+        {'assetId': videoId},
+      );
+
+      if (filePath == null || filePath.isEmpty) {
+        throw Exception('原生方法返回空路径');
+      }
+
+      return filePath;
+    } on PlatformException catch (e) {
+      throw Exception('[${e.code}] ${e.message}');
+    }
+  }
+
+  /// 获取视频文件路径（统一入口）
   ///
   /// 工作流程：
   /// 1. 从 state.videos 中查找对应视频的 originalFilePath
-  /// 2. 如果已缓存，直接返回（避免重复调用 originFile）
-  /// 3. 如果未缓存，调用 assetEntity.originFile 获取文件路径
-  /// 4. 将获取到的路径保存到 state.videos 中，供后续使用
+  /// 2. 如果已缓存，直接返回（避免重复调用）
+  /// 3. 如果未缓存，通过原生方法获取文件路径
+  /// 4. 验证文件是否存在
+  /// 5. 将获取到的路径保存到 state.videos 中，供后续使用
   ///
-  /// 使用 originFile 的优势（保留完整元数据）：
-  /// - GPS 坐标（拍摄地点）
-  /// - 拍摄时间（创建时间、修改时间）
-  /// - 相机信息（设备型号、镜头参数）
-  /// - EXIF 数据（ISO、光圈、快门速度等）
+  /// 原生方法的优势：
+  /// - 智能处理本地和 iCloud 视频
+  /// - 支持下载进度回调
+  /// - 保留完整的视频元数据
+  /// - 直接返回文件路径，无需复制
   ///
   /// 注意事项：
-  /// - originFile 会将文件复制到应用临时目录
   /// - 对于 iCloud 视频，会触发下载（可能耗时较长）
+  /// - 如果网络不可用且视频在 iCloud，会抛出错误
   /// - 方法内部会自动更新 state，调用者无需手动更新 originalFilePath
   ///
   /// 参数：
@@ -255,24 +291,27 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       return videoInfo.originalFilePath!;
     }
 
-    final assetEntity = await AssetEntity.fromId(videoId);
-    if (assetEntity == null) throw Exception('无法找到视频资源: $videoId');
+    print('[获取视频文件] 开始获取视频文件路径: $videoId');
+    // 调用原生方法获取视频文件路径
+    final filePath = await _getVideoFilePath(videoId);
+    print('[获取视频文件] 成功获取文件路径: $filePath');
 
-    // 使用 originFile 获取包含完整元数据的文件
-    // 注意：这个调用可能会触发从 iCloud 下载或复制文件到临时目录
-    final file = await assetEntity.originFile;
-    if (file == null) throw Exception('无法获取视频文件');
+    // 验证文件是否存在
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw Exception('文件不存在: $filePath');
+    }
 
     // 更新 state.videos 中的原始文件路径
     final updatedVideos = state.videos.map((v) {
       if (v.video.id == videoId) {
-        return v.copyWith(originalFilePath: file.absolute.path);
+        return v.copyWith(originalFilePath: filePath);
       }
       return v;
     }).toList();
     emit(state.copyWith(videos: updatedVideos));
 
-    return file.absolute.path;
+    return filePath;
   }
 
   /// 使用 FFmpegKit 压缩单个视频

@@ -26,6 +26,8 @@ import Photos
       // 根据调用的方法名分发到对应处理函数
       if call.method == "getVideoMetadata" {
         self.getVideoMetadata(call: call, result: result)
+      } else if call.method == "getVideoFilePath" {
+        self.getVideoFilePath(call: call, result: result)
       } else {
         // 未实现的方法返回错误
         result(FlutterMethodNotImplemented)
@@ -90,5 +92,102 @@ import Photos
     ]
     
     result(basicInfo)
+  }
+  
+  /// 获取视频文件路径
+  ///
+  /// 此方法会获取 PHAsset 对应的视频文件路径：
+  /// - 如果视频在本地，直接返回路径
+  /// - 如果视频在 iCloud，会触发下载并返回路径
+  /// - 保留完整的视频元数据
+  ///
+  /// - Parameters:
+  ///   - call: Flutter 方法调用对象，包含以下参数：
+  ///     - assetId: PHAsset 的 localIdentifier
+  ///   - result: 结果回调，返回视频文件路径（String）
+  ///
+  /// - Note:
+  ///   - 返回的路径可能指向系统相册目录或临时缓存目录
+  ///   - 如果网络不可用且视频在 iCloud，会返回错误
+  private func getVideoFilePath(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    // 解析参数
+    guard let args = call.arguments as? [String: Any],
+          let assetId = args["assetId"] as? String else {
+      result(FlutterError(code: "INVALID_ARGUMENT", message: "参数无效", details: nil))
+      return
+    }
+    
+    // 获取 PHAsset
+    let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil)
+    guard let asset = fetchResult.firstObject else {
+      result(FlutterError(code: "ASSET_NOT_FOUND", message: "视频资源不存在", details: nil))
+      return
+    }
+    
+    // 检查是否为视频
+    guard asset.mediaType == .video else {
+      result(FlutterError(code: "INVALID_MEDIA_TYPE", message: "资源不是视频类型", details: nil))
+      return
+    }
+    
+    print("[VideoFilePath] 开始获取视频文件路径")
+    print("[VideoFilePath] Asset ID: \(assetId)")
+    
+    // 配置请求选项
+    let options = PHVideoRequestOptions()
+    options.version = .original  // 获取原始视频
+    options.deliveryMode = .highQualityFormat  // 高质量格式
+    options.isNetworkAccessAllowed = true  // 允许网络访问（从 iCloud 下载）
+    
+    // 设置进度回调
+    var lastProgress: Double = 0
+    options.progressHandler = { progress, error, stop, info in
+      DispatchQueue.main.async {
+        // 只在进度变化超过 5% 时打印，避免日志过多
+        if progress - lastProgress > 0.05 || progress == 1.0 {
+          print("[VideoFilePath] 下载进度: \(Int(progress * 100))%")
+          lastProgress = progress
+        }
+        
+        if let error = error {
+          print("[VideoFilePath] 下载错误: \(error.localizedDescription)")
+        }
+      }
+    }
+    
+    // 请求视频文件
+    PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, audioMix, info in
+      // 检查是否被取消
+      if let cancelled = info?[PHImageCancelledKey] as? Bool, cancelled {
+        print("[VideoFilePath] 请求被取消")
+        result(FlutterError(code: "CANCELLED", message: "操作被取消", details: nil))
+        return
+      }
+      
+      // 检查是否有错误
+      if let error = info?[PHImageErrorKey] as? Error {
+        print("[VideoFilePath] 请求失败: \(error.localizedDescription)")
+        result(FlutterError(
+          code: "REQUEST_FAILED",
+          message: "获取视频文件失败: \(error.localizedDescription)",
+          details: nil
+        ))
+        return
+      }
+      
+      // 检查是否获取到 AVAsset
+      guard let urlAsset = avAsset as? AVURLAsset else {
+        print("[VideoFilePath] 无法获取 AVURLAsset")
+        result(FlutterError(code: "INVALID_ASSET", message: "无法获取视频资源", details: nil))
+        return
+      }
+      
+      let filePath = urlAsset.url.path
+      print("[VideoFilePath] 视频文件路径: \(filePath)")
+      print("[VideoFilePath] 完成！")
+      
+      // 直接返回文件路径
+      result(filePath)
+    }
   }
 }
