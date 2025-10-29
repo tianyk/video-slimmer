@@ -81,10 +81,35 @@ class CompressionProgressState extends Equatable {
 
 /// 压缩进度状态管理
 class CompressionProgressCubit extends Cubit<CompressionProgressState> {
-  CompressionProgressCubit() : super(const CompressionProgressState());
-
   // MethodChannel for iOS native API
   static const _platform = MethodChannel('cc.kekek.videoslimmer');
+  // EventChannel for progress updates
+  static const _progressChannel = EventChannel('cc.kekek.videoslimmer/progress');
+
+  StreamSubscription? _progressSubscription;
+
+  CompressionProgressCubit() : super(const CompressionProgressState()) {
+    _listenToProgress();
+  }
+
+  /// 监听原生进度事件
+  void _listenToProgress() {
+    _progressSubscription = _progressChannel.receiveBroadcastStream().listen(
+      (event) {
+        if (event is Map) {
+          final videoId = event['videoId'] as String?;
+          final progress = event['progress'] as double?;
+
+          if (videoId != null && progress != null) {
+            print('[进度监听] videoId: $videoId, progress: ${(progress * 100).toStringAsFixed(1)}%');
+          }
+        }
+      },
+      onError: (error) {
+        print('[进度监听] 错误: $error');
+      },
+    );
+  }
 
   /// 当前压缩配置
   CompressionConfig? _compressionConfig;
@@ -102,6 +127,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     _isRunning = false;
     _videoIdsToCompress.clear();
     _videoIdsToDownload.clear();
+    _progressSubscription?.cancel();
     return super.close();
   }
 

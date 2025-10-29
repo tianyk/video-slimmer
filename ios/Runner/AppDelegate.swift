@@ -3,10 +3,38 @@ import UIKit
 import AVFoundation
 import Photos
 
+/// 进度流处理器
+class ProgressStreamHandler: NSObject, FlutterStreamHandler {
+  private var eventSink: FlutterEventSink?
+  
+  func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+    self.eventSink = events
+    print("[ProgressStream] 开始监听进度")
+    return nil
+  }
+  
+  func onCancel(withArguments arguments: Any?) -> FlutterError? {
+    self.eventSink = nil
+    print("[ProgressStream] 停止监听进度")
+    return nil
+  }
+  
+  func sendProgress(videoId: String, progress: Double) {
+    let data: [String: Any] = [
+      "videoId": videoId,
+      "progress": progress
+    ]
+    eventSink?(data)
+  }
+}
+
 /// VideoSlimmer iOS 应用入口类
 /// 负责 Flutter 应用的初始化和原生功能桥接
 @main
 @objc class AppDelegate: FlutterAppDelegate {
+  
+  // 进度流处理器
+  private let progressHandler = ProgressStreamHandler()
   
   /// 应用启动完成回调
   /// 在此处设置 MethodChannel 和注册插件
@@ -33,6 +61,13 @@ import Photos
         result(FlutterMethodNotImplemented)
       }
     }
+    
+    // 创建进度事件通道
+    let progressChannel = FlutterEventChannel(
+      name: "cc.kekek.videoslimmer/progress",
+      binaryMessenger: controller.binaryMessenger
+    )
+    progressChannel.setStreamHandler(progressHandler)
     
     // 注册 Flutter 插件
     GeneratedPluginRegistrant.register(with: self)
@@ -147,6 +182,9 @@ import Photos
         if progress - lastProgress > 0.05 || progress == 1.0 {
           print("[VideoFilePath] 下载进度: \(Int(progress * 100))%")
           lastProgress = progress
+          
+          // 通过 EventChannel 发送进度到 Flutter
+          self.progressHandler.sendProgress(videoId: assetId, progress: progress)
         }
         
         if let error = error {
