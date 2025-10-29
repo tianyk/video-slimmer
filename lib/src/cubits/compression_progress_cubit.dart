@@ -107,10 +107,12 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     required List<VideoModel> videos,
     required CompressionConfig config,
   }) async {
+    print('========== 开始初始化压缩任务 ==========');
     _compressionConfig = config;
 
     final videoInfos = await Future.wait(videos.map((video) async {
       final isLocallyAvailable = await isVideoLocallyAvailable(video.id);
+      print('视频信息: ${video.id} 本地可用: $isLocallyAvailable');
       return VideoCompressionInfo(
         video: video,
         status: isLocallyAvailable ? VideoCompressionStatus.waiting : VideoCompressionStatus.waitingDownload,
@@ -127,9 +129,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   /// 开始压缩任务
   void startCompression() {
-    if (state.videos.isEmpty) return;
-
-    print('========== 开始执行压缩任务 ==========');
+    print('========== 开始开始压缩任务 ==========');
     // 设置为正在处理
     _isRunning = true;
 
@@ -142,32 +142,33 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   /// 调度下载任务
   Future<void> _scheduleDownloads() async {
-    while (_isRunning) {
-      // 获取一个待下载的视频 ID
-      final videoId = await _videoIdsToDownload.take();
-      try {
-        final videoInfo = state.getVideoCompressionInfoByVideoId(videoId);
-        // 如果视频状态为等待下载，则开始下载
-        if (videoInfo.status == VideoCompressionStatus.waitingDownload) {
-          // 更新视频状态为正在下载
-          _updateVideoStatus(videoId, VideoCompressionStatus.downloading);
-          // 获取视频文件路径，触发下载，下载完成后会自动更新视频状态为等待压缩
-          // 使用统一方法，会自动从 state.videos 中查找缓存的路径
-          await _ensureVideoFilePath(videoInfo.video.id);
+    // while (_isRunning) {
+    //   // 获取一个待下载的视频 ID
+    //   final videoId = await _videoIdsToDownload.take();
+    //   try {
+    //     final videoInfo = state.getVideoCompressionInfoByVideoId(videoId);
+    //     // 如果视频状态为等待下载，则开始下载
+    //     if (videoInfo.status == VideoCompressionStatus.waitingDownload) {
+    //       // 更新视频状态为正在下载
+    //       _updateVideoStatus(videoId, VideoCompressionStatus.downloading);
+    //       // 获取视频文件路径，触发下载，下载完成后会自动更新视频状态为等待压缩
+    //       // 使用统一方法，会自动从 state.videos 中查找缓存的路径
+    //       await _ensureVideoFilePath(videoInfo.video.id);
 
-          // 更新视频状态为等待压缩
-          _updateVideoStatus(videoId, VideoCompressionStatus.waiting, progress: 0.0);
-        }
-      } catch (e) {
-        print('处理下载任务失败: $e');
-        // 如果下载任务失败，则更新视频状态为错误
-        _updateVideoStatus(videoId, VideoCompressionStatus.error, errorMessage: e.toString());
-      }
-    }
+    //       // 更新视频状态为等待压缩
+    //       _updateVideoStatus(videoId, VideoCompressionStatus.waiting, progress: 0.0);
+    //     }
+    //   } catch (e) {
+    //     print('处理下载任务失败: $e');
+    //     // 如果下载任务失败，则更新视频状态为错误
+    //     _updateVideoStatus(videoId, VideoCompressionStatus.error, errorMessage: e.toString());
+    //   }
+    // }
   }
 
   /// 调度压缩任务
   Future<void> _scheduleCompression() async {
+    print('========== 开始执行压缩任务 ==========');
     while (_isRunning) {
       final videoId = await _videoIdsToCompress.take();
       try {
@@ -287,6 +288,11 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       final inputPath = await _ensureVideoFilePath(videoInfo.video.id);
       // 构建输出文件路径
       final String outputPath = await _buildOutputPath(inputPath);
+      print('========== 压缩视频: ${videoInfo.video.id} ==========');
+      print('视频信息: ${videoInfo.video.id}');
+      print('原始文件路径: $inputPath');
+      print('输出文件路径: $outputPath');
+      print('==================================================');
 
       final String command = await _buildFfmpegCommand(
         inputPath: inputPath,

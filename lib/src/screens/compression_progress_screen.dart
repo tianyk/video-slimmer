@@ -37,6 +37,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
 
     // 自动开始压缩（在当前帧绘制完成后回调，确保界面已建立再触发业务逻辑）
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      print('========== 开始开始压缩任务 ==========');
       _progressCubit.startCompression();
     });
   }
