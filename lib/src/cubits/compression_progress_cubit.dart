@@ -142,28 +142,27 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   /// 调度下载任务
   Future<void> _scheduleDownloads() async {
-    // while (_isRunning) {
-    //   // 获取一个待下载的视频 ID
-    //   final videoId = await _videoIdsToDownload.take();
-    //   try {
-    //     final videoInfo = state.getVideoCompressionInfoByVideoId(videoId);
-    //     // 如果视频状态为等待下载，则开始下载
-    //     if (videoInfo.status == VideoCompressionStatus.waitingDownload) {
-    //       // 更新视频状态为正在下载
-    //       _updateVideoStatus(videoId, VideoCompressionStatus.downloading);
-    //       // 获取视频文件路径，触发下载，下载完成后会自动更新视频状态为等待压缩
-    //       // 使用统一方法，会自动从 state.videos 中查找缓存的路径
-    //       await _ensureVideoFilePath(videoInfo.video.id);
-
-    //       // 更新视频状态为等待压缩
-    //       _updateVideoStatus(videoId, VideoCompressionStatus.waiting, progress: 0.0);
-    //     }
-    //   } catch (e) {
-    //     print('处理下载任务失败: $e');
-    //     // 如果下载任务失败，则更新视频状态为错误
-    //     _updateVideoStatus(videoId, VideoCompressionStatus.error, errorMessage: e.toString());
-    //   }
-    // }
+    while (_isRunning) {
+      // 获取一个待下载的视频 ID
+      final videoId = await _videoIdsToDownload.take();
+      print('========== 开始下载视频: $videoId ==========');
+      try {
+        final videoInfo = state.getVideoCompressionInfoByVideoId(videoId);
+        // 如果视频状态为等待下载，则开始下载
+        if (videoInfo.status == VideoCompressionStatus.waitingDownload) {
+          // 更新视频状态为正在下载
+          _updateVideoStatus(videoId, VideoCompressionStatus.downloading);
+          // 获取视频文件路径，触发下载，下载完成后会自动更新视频状态为等待压缩
+          await _ensureVideoFilePath(videoInfo.video.id);
+          // 更新视频状态为等待压缩
+          _updateVideoStatus(videoId, VideoCompressionStatus.waiting, progress: 0.0);
+        }
+      } catch (e) {
+        print('处理下载任务失败: $e');
+        // 如果下载任务失败，则更新视频状态为错误
+        _updateVideoStatus(videoId, VideoCompressionStatus.error, errorMessage: e.toString());
+      }
+    }
   }
 
   /// 调度压缩任务
