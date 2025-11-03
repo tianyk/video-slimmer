@@ -253,7 +253,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
         return v.copyWith(
           status: status,
           progress: progress ?? v.progress,
-          errorMessage: errorMessage,
+          errorMessage: errorMessage ?? v.errorMessage,
           outputPath: outputPath ?? v.outputPath,
           compressedSize: compressedSize ?? v.compressedSize,
         );
