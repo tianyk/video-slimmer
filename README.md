@@ -12,7 +12,7 @@
 ## 运行
 ```bash
 flutter pub get
-flutter run --device-id "test的iPad"
+flutter run --device-id "iPhone"
 ```
 
 ## 技术栈

@@ -3,11 +3,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../constants/app_theme.dart';
 import '../cubits/compression_progress_cubit.dart';
+import '../libs/logger.dart';
 import '../models/compression_model.dart';
 import '../models/compression_progress_model.dart';
 import '../models/video_model.dart';
 import '../utils.dart';
 import '../widgets/video_thumbnail.dart';
+
+final _logger = Logger.getLogger();
 
 class CompressionProgressScreen extends StatefulWidget {
   final List<VideoModel> selectedVideos;
@@ -37,7 +40,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
 
     // 自动开始压缩（在当前帧绘制完成后回调，确保界面已建立再触发业务逻辑）
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      print('========== 开始开始压缩任务 ==========');
+      _logger.info('开始压缩任务');
       _progressCubit.startCompression();
     });
   }

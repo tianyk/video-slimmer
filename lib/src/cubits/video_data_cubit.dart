@@ -5,7 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:photo_manager/photo_manager.dart';
 
+import '../libs/logger.dart';
 import '../models/video_model.dart';
+
+final _logger = Logger.getLogger();
 
 /// 视频数据状态
 sealed class VideoDataState extends Equatable {
@@ -205,7 +208,10 @@ class VideoDataCubit extends Cubit<VideoDataState> {
         return Map<String, dynamic>.from(result);
       }
     } catch (e) {
-      print('获取视频基本信息失败: $e');
+      _logger.warning('获取视频基本信息失败', {
+        'error': e.toString(),
+        'assetId': assetId,
+      });
     }
 
     return null;

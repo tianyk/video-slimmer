@@ -14,10 +14,13 @@ import 'package:path/path.dart' as path;
 import 'package:uuid/uuid.dart';
 
 import '../libs/async_queue.dart';
+import '../libs/logger.dart';
 import '../models/compression_model.dart';
 import '../models/compression_progress_model.dart';
 import '../models/video_model.dart';
 import '../utils.dart';
+
+final _logger = Logger.getLogger();
 
 /// 压缩进度状态
 class CompressionProgressState extends Equatable {
@@ -101,12 +104,15 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           final progress = event['progress'] as double?;
 
           if (videoId != null && progress != null) {
-            print('[进度监听] videoId: $videoId, progress: ${(progress * 100).toStringAsFixed(1)}%');
+            _logger.debug('进度监听', {
+              'videoId': videoId,
+              'progress': '${(progress * 100).toStringAsFixed(1)}%',
+            });
           }
         }
       },
       onError: (error) {
-        print('[进度监听] 错误: $error');
+        _logger.error('进度监听错误', error: error);
       },
     );
   }
@@ -136,12 +142,15 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     required List<VideoModel> videos,
     required CompressionConfig config,
   }) async {
-    print('========== 开始初始化压缩任务 ==========');
+    _logger.info('开始初始化压缩任务', {'videoCount': videos.length});
     _compressionConfig = config;
 
     final videoInfos = await Future.wait(videos.map((video) async {
       final isLocallyAvailable = await isVideoLocallyAvailable(video.id);
-      print('视频信息: ${video.id} 本地可用: $isLocallyAvailable');
+      _logger.debug('视频信息', {
+        'videoId': video.id,
+        'locallyAvailable': isLocallyAvailable,
+      });
       return VideoCompressionInfo(
         video: video,
         status: isLocallyAvailable ? VideoCompressionStatus.waiting : VideoCompressionStatus.waitingDownload,
@@ -158,7 +167,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   /// 开始压缩任务
   void startCompression() {
-    print('========== 开始开始压缩任务 ==========');
+    _logger.info('开始压缩任务');
     // 设置为正在处理
     _isRunning = true;
 
@@ -174,7 +183,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     while (_isRunning) {
       // 获取一个待下载的视频 ID
       final videoId = await _videoIdsToDownload.take();
-      print('========== 开始下载视频: $videoId ==========');
+      _logger.info('开始下载视频', {'videoId': videoId});
       try {
         final videoInfo = state.getVideoCompressionInfoByVideoId(videoId);
         // 如果视频状态为等待下载，则开始下载
@@ -185,13 +194,13 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           await _ensureVideoFilePath(videoInfo.video.id);
           // 更新视频状态为等待压缩
           _updateVideoStatus(videoId, VideoCompressionStatus.waiting, progress: 0.0);
-          print('========== 下载视频: $videoId 完成 ==========');
+          _logger.info('下载视频完成', {'videoId': videoId});
           // 添加到压缩队列
           _videoIdsToCompress.add(videoId);
-          print('========== 添加到压缩队列: $videoId ==========');
+          _logger.debug('添加到压缩队列', {'videoId': videoId});
         }
       } catch (e) {
-        print('处理下载任务失败: $e');
+        _logger.error('处理下载任务失败', error: e, data: {'videoId': videoId});
         // 如果下载任务失败，则更新视频状态为错误
         _updateVideoStatus(videoId, VideoCompressionStatus.error, errorMessage: e.toString());
       }
@@ -200,7 +209,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   /// 调度压缩任务
   Future<void> _scheduleCompression() async {
-    print('========== 开始执行压缩任务 ==========');
+    _logger.info('开始执行压缩任务');
     while (_isRunning) {
       final videoId = await _videoIdsToCompress.take();
       try {
@@ -216,7 +225,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           _updateVideoStatus(videoId, VideoCompressionStatus.completed, progress: 1.0, outputPath: outputPath, compressedSize: compressedSize);
         }
       } catch (e) {
-        print('处理视频压缩失败: $e');
+        _logger.error('处理视频压缩失败', error: e, data: {'videoId': videoId});
         if (e is Exception && e.toString() == 'canceled') {
           // 如果处理被取消，则更新视频状态为已取消
           // 这里不更新状态，取消时直接更新状态，避免重复更新
@@ -317,10 +326,10 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       return videoInfo.originalFilePath!;
     }
 
-    print('[获取视频文件] 开始获取视频文件路径: $videoId');
+    _logger.debug('获取视频文件路径', {'videoId': videoId});
     // 调用原生方法获取视频文件路径
     final filePath = await _getVideoFilePath(videoId);
-    print('[获取视频文件] 成功获取文件路径: $filePath');
+    _logger.info('成功获取文件路径', {'videoId': videoId, 'filePath': filePath});
 
     // 验证文件是否存在
     final file = File(filePath);
@@ -352,11 +361,11 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       final inputPath = await _ensureVideoFilePath(videoInfo.video.id);
       // 构建输出文件路径
       final String outputPath = await _buildOutputPath(inputPath);
-      print('========== 压缩视频: ${videoInfo.video.id} ==========');
-      print('视频信息: ${videoInfo.video.id}');
-      print('原始文件路径: $inputPath');
-      print('输出文件路径: $outputPath');
-      print('==================================================');
+      _logger.info('开始压缩视频', {
+        'videoId': videoInfo.video.id,
+        'inputPath': inputPath,
+        'outputPath': outputPath,
+      });
 
       final String command = await _buildFfmpegCommand(
         inputPath: inputPath,
@@ -364,7 +373,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
         config: _compressionConfig!,
       );
 
-      print('[FFmpeg 命令] $command');
+      _logger.debug('FFmpeg命令', {'command': command});
 
       // 运行FFmpeg，并追踪进度
       final session = await FFmpegKit.executeAsync(
@@ -373,34 +382,34 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           try {
             final ReturnCode? returnCode = await session.getReturnCode();
             if (ReturnCode.isSuccess(returnCode)) {
-              print('======== 压缩成功 ========');
-              print('视频: ${videoInfo.video.id}');
-              print('原始大小: ${videoInfo.video.fileSize}');
-              print('输出路径: $outputPath');
-              print('=======================');
+              _logger.info('压缩成功', {
+                'videoId': videoInfo.video.id,
+                'originalSize': videoInfo.video.fileSize,
+                'outputPath': outputPath,
+              });
 
               if (!completer.isCompleted) {
                 completer.complete(outputPath);
               }
             } else if (ReturnCode.isCancel(returnCode)) {
-              print('[FFmpeg] 压缩被取消: ${videoInfo.video.id}');
+              _logger.warning('压缩被取消', {'videoId': videoInfo.video.id});
               if (!completer.isCompleted) {
                 completer.completeError(Exception('canceled'));
               }
             } else {
               final String logs = (await session.getAllLogsAsString()) ?? '未知错误';
-              print('======== 压缩失败 ========');
-              print('视频: ${videoInfo.video.id}');
-              print('返回码: ${returnCode?.getValue()}');
-              print('错误日志: $logs');
-              print('========================');
+              _logger.error('压缩失败', data: {
+                'videoId': videoInfo.video.id,
+                'returnCode': returnCode?.getValue(),
+                'logs': logs,
+              });
 
               if (!completer.isCompleted) {
                 completer.completeError(Exception('压缩失败: ${returnCode?.getValue()}'));
               }
             }
           } catch (e) {
-            print('[FFmpeg 回调异常] $e');
+            _logger.error('FFmpeg回调异常', error: e, data: {'videoId': videoInfo.video.id});
             if (!completer.isCompleted) {
               completer.completeError(e);
             }
@@ -411,7 +420,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           final String logMessage = log.getMessage();
           final int logLevel = log.getLevel();
           final String levelStr = _getLogLevelString(logLevel);
-          print('[FFmpeg $levelStr] $logMessage');
+          _logger.debug('FFmpeg日志', {'level': levelStr, 'message': logMessage});
         },
         (Statistics statistics) {
           // ========== FFmpeg 统计信息回调 ==========
@@ -435,15 +444,20 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           // 例如：还剩 30 秒视频，处理速度 1.5x，则需要 30/1.5 = 20 秒实际时间
           final Duration remaining = speed > 0 ? Duration(milliseconds: ((totalMs - timeMs) / speed).round()) : Duration.zero;
 
-          print('[FFmpeg 统计] 进度: ${(progress * 100).toStringAsFixed(1)}% | '
-              '时间: ${(timeMs / 1000).toStringAsFixed(1)}s/${(totalMs / 1000).toStringAsFixed(1)}s | '
-              '预计剩余: ${remaining.inMinutes}分${remaining.inSeconds % 60}秒');
+          _logger.debug('FFmpeg统计', {
+            'progress': '${(progress * 100).toStringAsFixed(1)}%',
+            'time': '${(timeMs / 1000).toStringAsFixed(1)}s/${(totalMs / 1000).toStringAsFixed(1)}s',
+            'remaining': '${remaining.inMinutes}分${remaining.inSeconds % 60}秒',
+          });
 
           _updateVideoProgress(videoInfo.video.id, progress, remaining.inSeconds);
         },
       );
 
-      print('======== 压缩会话 ID: ${session.getSessionId()} ========');
+      _logger.info('创建压缩会话', {
+        'sessionId': session.getSessionId(),
+        'videoId': videoInfo.video.id,
+      });
       _updateVideoSessionId(videoInfo.video.id, session.getSessionId() ?? 0);
     } catch (e) {
       if (!completer.isCompleted) {
@@ -505,7 +519,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
       return null;
     } catch (e) {
-      print('⚠️  检测视频编码失败: $e');
+      _logger.warning('检测视频编码失败', {'error': e.toString()});
       return null;
     }
   }
@@ -602,7 +616,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
         tags: tags,
       );
     } catch (e) {
-      print('⚠️  获取视频元数据失败: $e');
+      _logger.warning('获取视频元数据失败', {'error': e.toString()});
       return null;
     }
   }
@@ -630,7 +644,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
     // 检测原始编码格式
     final String? originalCodec = await _detectVideoCodec(inputPath);
-    print('[视频编码] 原始编码: $originalCodec');
+    _logger.debug('视频编码信息', {'originalCodec': originalCodec});
 
     // 检测色彩空间信息（用于 HDR 视频）
     final VideoMetadata? metadata = await _getVideoMetadata(inputPath);
@@ -640,10 +654,11 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     final bool isHdrVideo = colorSpace == 'bt2020nc' || colorTransfer == 'arib-std-b67' || colorTransfer == 'smpte2084';
 
     if (isHdrVideo) {
-      print('[HDR 检测] 检测到 HDR 视频');
-      print('[色彩空间] $colorSpace');
-      print('[色域] $colorPrimaries');
-      print('[传输特性] $colorTransfer');
+      _logger.info('检测到HDR视频', {
+        'colorSpace': colorSpace,
+        'colorPrimaries': colorPrimaries,
+        'colorTransfer': colorTransfer,
+      });
     }
 
     final bool isHevc = originalCodec?.contains('hevc') == true || originalCodec?.contains('h265') == true;
@@ -656,19 +671,19 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     if (isHevc) {
       if (useHardwareAcceleration) {
         videoCodec = 'hevc_videotoolbox';
-        print('[编码器] 使用 HEVC 硬件编码 (hevc_videotoolbox)');
+        _logger.debug('使用HEVC硬件编码', {'codec': 'hevc_videotoolbox'});
       } else {
         videoCodec = 'libx265';
-        print('[编码器] 使用 HEVC 软件编码 (libx265)');
+        _logger.debug('使用HEVC软件编码', {'codec': 'libx265'});
       }
       videoTag = 'hvc1';
     } else {
       if (useHardwareAcceleration) {
         videoCodec = 'h264_videotoolbox';
-        print('[编码器] 使用 H.264 硬件编码 (h264_videotoolbox)');
+        _logger.debug('使用H.264硬件编码', {'codec': 'h264_videotoolbox'});
       } else {
         videoCodec = 'libx264';
-        print('[编码器] 使用 H.264 软件编码 (libx264)');
+        _logger.debug('使用H.264软件编码', {'codec': 'libx264'});
       }
       videoTag = 'avc1';
     }
@@ -681,7 +696,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     // === 硬件加速 ===
     if (useHardwareAcceleration) {
       args.addAll(['-hwaccel', 'videotoolbox']);
-      print('[硬件加速] 启用 VideoToolbox');
+      _logger.debug('硬件加速已启用', {'type': 'VideoToolbox'});
     }
 
     // === 容错设置 ===
@@ -730,7 +745,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
         }
         // 保留 TV range（limited range）
         args.addAll(['-color_range', 'tv']);
-        print('[色彩保留] 已添加 HDR 色彩空间参数');
+        _logger.debug('已添加HDR色彩空间参数');
       }
     } else {
       args.addAll([
@@ -794,7 +809,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     args.add(_q(outputPath));
 
     final command = args.join(' ');
-    print('[FFmpeg 命令] $command');
+    _logger.debug('构建FFmpeg命令完成', {'command': command});
     return command;
   }
 
@@ -843,16 +858,16 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     final video = state.getVideoCompressionInfoByVideoId(videoId);
 
     if (video.status == VideoCompressionStatus.waitingDownload) {
-      print('[取消排队下载] ${video.video.id}');
+      _logger.info('取消排队下载', {'videoId': video.video.id});
       // 从下载队列中移除视频ID
       _videoIdsToDownload.remove(videoId);
     } else if (video.status == VideoCompressionStatus.downloading) {
-      print('[取消正在下载] ${video.video.id}');
+      _logger.info('取消正在下载', {'videoId': video.video.id});
     } else if (video.status == VideoCompressionStatus.compressing) {
       FFmpegKit.cancel(video.sessionId);
-      print('[取消正在压缩] ${video.video.id}');
+      _logger.info('取消正在压缩', {'videoId': video.video.id});
     } else if (video.status == VideoCompressionStatus.waiting) {
-      print('[取消排队压缩] ${video.video.id}');
+      _logger.info('取消排队压缩', {'videoId': video.video.id});
       // 从压缩队列中移除视频ID
       _videoIdsToCompress.remove(videoId);
     }
