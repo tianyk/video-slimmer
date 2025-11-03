@@ -222,6 +222,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           final outputPath = await _runFfmpegForVideo(videoInfo);
           // 获取压缩后文件大小
           final compressedSize = await _readFileSize(outputPath);
+          _logger.debug('压缩后文件大小', {'videoId': videoId, 'outputPath': outputPath, 'compressedSize': compressedSize});
           // 更新视频状态为已完成
           _updateVideoStatus(videoId, VideoCompressionStatus.completed, progress: 1.0, outputPath: outputPath, compressedSize: compressedSize);
         }
@@ -248,15 +249,24 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     String? outputPath,
     int? compressedSize,
   }) {
+    _logger.debug('更新视频状态', {
+      'videoId': videoId,
+      'status': status.toString(),
+      'outputPath': outputPath,
+      'compressedSize': compressedSize,
+    });
+
     final updatedVideos = state.videos.map((v) {
       if (v.video.id == videoId) {
-        return v.copyWith(
+        final updated = v.copyWith(
           status: status,
           progress: progress ?? v.progress,
           errorMessage: errorMessage ?? v.errorMessage,
           outputPath: outputPath ?? v.outputPath,
           compressedSize: compressedSize ?? v.compressedSize,
         );
+
+        return updated;
       }
       return v;
     }).toList();
