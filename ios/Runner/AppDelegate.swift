@@ -87,6 +87,7 @@ class ProgressStreamHandler: NSObject, FlutterStreamHandler {
   ///   - pixelWidth: 视频像素宽度（Int）
   ///   - pixelHeight: 视频像素高度（Int）
   ///   - duration: 视频时长（Double，单位：秒）
+  ///   - title: 原始文件名（String，如 IMG_0001.MOV）
   /// 
   /// - Note:
   ///   - 使用 PHAssetResource 获取精确的文件大小
@@ -108,14 +109,16 @@ class ProgressStreamHandler: NSObject, FlutterStreamHandler {
       return
     }
     
-    // 获取 PHAsset 关联的资源列表并查找文件大小
+    // 获取 PHAsset 关联的资源列表并查找文件大小和文件名
     let resources = PHAssetResource.assetResources(for: asset)
     var fileSize: Int64 = 0
+    var title: String = "unknown"
     for resource in resources where resource.type == .video {
       if let size = resource.value(forKey: "fileSize") as? Int64 {
         fileSize = size
-        break
       }
+      // 获取原始文件名（如 IMG_0001.MOV）
+      title = resource.originalFilename
     }
     
     // 构建基本信息字典
@@ -123,7 +126,8 @@ class ProgressStreamHandler: NSObject, FlutterStreamHandler {
       "fileSize": fileSize,
       "pixelWidth": asset.pixelWidth,
       "pixelHeight": asset.pixelHeight,
-      "duration": asset.duration
+      "duration": asset.duration,
+      "title": title
     ]
     
     result(basicInfo)

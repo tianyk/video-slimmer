@@ -11,6 +11,7 @@ import 'package:ffmpeg_kit_flutter_new/statistics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:path/path.dart' as path;
+import 'package:photo_manager/photo_manager.dart';
 import 'package:uuid/uuid.dart';
 
 import '../libs/async_queue.dart';
@@ -942,6 +943,69 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     }).toList();
 
     emit(state.copyWith(videos: updatedVideos));
+  }
+
+  /// 保存视频到相册
+  Future<void> saveVideoToPhotos(VideoCompressionInfo videoInfo) async {
+    if (videoInfo.outputPath == null) {
+      _logger.warning('无法保存视频：输出路径为空', {'videoId': videoInfo.video.id});
+      throw Exception('无法保存视频：输出路径为空');
+    }
+
+    try {
+      // 1. 请求相册权限
+      final PermissionState ps = await PhotoManager.requestPermissionExtend();
+      if (!ps.hasAccess) {
+        _logger.warning('用户拒绝相册权限', {'videoId': videoInfo.video.id});
+        throw Exception('需要相册权限才能保存视频');
+      }
+
+      // 2. 构建新文件名：原始文件名 + _compressed 后缀
+      String newTitle;
+      if (videoInfo.video.title.isNotEmpty && videoInfo.video.title != 'unknown') {
+        // 移除扩展名（如 .MOV、.mp4）
+        final originalFilename = videoInfo.video.title;
+        final nameWithoutExt = originalFilename.split('.').first;
+        // 添加 _compressed 后缀，如 IMG_0001_compressed
+        newTitle = '${nameWithoutExt}_compressed';
+      } else {
+        // 如果无法获取原始文件名，使用时间戳
+        newTitle = 'compressed_${DateTime.now().millisecondsSinceEpoch}';
+      }
+
+      _logger.info('保存视频到相册', {
+        'videoId': videoInfo.video.id,
+        'originalTitle': videoInfo.video.title,
+        'newTitle': newTitle,
+        'outputPath': videoInfo.outputPath,
+      });
+
+      // 3. 检查文件是否存在
+      final file = File(videoInfo.outputPath!);
+      if (!await file.exists()) {
+        throw Exception('视频文件不存在: ${videoInfo.outputPath}');
+      }
+
+      // 4. 使用 PhotoManager 保存视频到相册
+      final assetEntity = await PhotoManager.editor.saveVideo(
+        file,
+        title: newTitle,
+      );
+
+      _logger.info('视频已保存到相册', {
+        'videoId': videoInfo.video.id,
+        'assetId': assetEntity.id,
+        'title': newTitle,
+      });
+    } catch (e, stackTrace) {
+      _logger.error(
+        '保存视频到相册失败',
+        error: e,
+        stackTrace: stackTrace,
+        data: {'videoId': videoInfo.video.id},
+      );
+      rethrow;
+    }
   }
 
   /// 获取日志级别字符串

@@ -167,7 +167,7 @@ class VideoCompressionInfo extends Equatable {
       case VideoCompressionStatus.compressing:
         return '取消压缩';
       case VideoCompressionStatus.completed:
-        return '预览';
+        return '保存到相册';
       case VideoCompressionStatus.cancelled:
         return '重新压缩';
       case VideoCompressionStatus.error:

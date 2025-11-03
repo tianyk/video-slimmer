@@ -174,6 +174,7 @@ class VideoDataCubit extends Cubit<VideoDataState> {
           height: videoEntity.height,
           sizeBytes: metadata?['fileSize'] ?? 0,
           creationDate: videoEntity.createDateTime,
+          title: metadata?['title'] ?? videoEntity.title ?? 'unknown',
         ));
       }
     }
@@ -183,7 +184,7 @@ class VideoDataCubit extends Cubit<VideoDataState> {
 
   /// 通过 iOS 原生 API 获取视频的基本信息
   ///
-  /// 快速获取视频的核心属性：文件大小、分辨率、时长
+  /// 快速获取视频的核心属性：文件大小、分辨率、时长、原始文件名
   ///
   /// 参数:
   /// - [assetId]: PHAsset 的 localIdentifier（即 AssetEntity.id）
@@ -193,9 +194,10 @@ class VideoDataCubit extends Cubit<VideoDataState> {
   /// - pixelWidth: 视频像素宽度（int）
   /// - pixelHeight: 视频像素高度（int）
   /// - duration: 视频时长，单位：秒（double）
+  /// - title: 原始文件名（String，如 IMG_0001.MOV）
   ///
   /// 注意:
-  /// - 使用 PHAssetResource 获取精确的文件大小
+  /// - 使用 PHAssetResource 获取精确的文件大小和原始文件名
   /// - 不会触发 iCloud 下载，只获取元数据
   /// - 即使视频在 iCloud 中未下载，也能获取所有信息
   Future<Map<String, dynamic>?> _getVideoMetadata(String assetId) async {

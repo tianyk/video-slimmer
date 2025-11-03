@@ -185,6 +185,9 @@ class VideoModel extends Equatable {
   /// 创建时间
   final DateTime creationDate;
 
+  /// 原始文件名（如 IMG_0001.MOV）
+  final String title;
+
   const VideoModel({
     required this.id,
     required this.duration,
@@ -192,6 +195,7 @@ class VideoModel extends Equatable {
     required this.height,
     required this.sizeBytes,
     required this.creationDate,
+    required this.title,
   });
 
   /// 文件大小格式化显示（自动转换为B/KB/MB/GB）
@@ -227,6 +231,7 @@ class VideoModel extends Equatable {
     int? height,
     int? sizeBytes,
     DateTime? creationDate,
+    String? title,
   }) {
     return VideoModel(
       id: id ?? this.id,
@@ -235,6 +240,7 @@ class VideoModel extends Equatable {
       height: height ?? this.height,
       sizeBytes: sizeBytes ?? this.sizeBytes,
       creationDate: creationDate ?? this.creationDate,
+      title: title ?? this.title,
     );
   }
 
@@ -246,5 +252,6 @@ class VideoModel extends Equatable {
         height,
         sizeBytes,
         creationDate,
+        title,
       ];
 }

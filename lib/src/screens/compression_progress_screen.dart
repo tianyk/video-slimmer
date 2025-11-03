@@ -197,6 +197,9 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
       case VideoAction.retry:
         _progressCubit.retryVideo(videoInfo.video.id);
         break;
+      case VideoAction.saveToPhotos:
+        _progressCubit.saveVideoToPhotos(videoInfo);
+        break;
     }
   }
 
@@ -321,6 +324,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
 enum VideoAction {
   cancel,
   retry,
+  saveToPhotos,
 }
 
 /// 视频进度项组件
@@ -634,7 +638,7 @@ class _VideoProgressItem extends StatelessWidget {
       case VideoCompressionStatus.compressing:
         return () => onAction(VideoAction.cancel);
       case VideoCompressionStatus.completed:
-        return () => {};
+        return () => onAction(VideoAction.saveToPhotos);
       case VideoCompressionStatus.cancelled:
       case VideoCompressionStatus.error:
         return () => onAction(VideoAction.retry);
