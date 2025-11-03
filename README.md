@@ -5,15 +5,8 @@
 ## 运行
 ```bash
 flutter pub get
-flutter run --device-id "iPhone"
+flutter run
 ```
-
-## 技术栈
-- Flutter 3.27.4 + Dart 3.6.2
-- flutter_bloc + flutter_riverpod 状态管理
-- ffmpeg_kit_flutter_new 视频处理
-- photo_manager 相册访问
-- go_router 路由管理
 
 ## 开发环境
 - Flutter 3.27.4 (稳定版)
