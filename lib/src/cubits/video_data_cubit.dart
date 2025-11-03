@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:pool/pool.dart';
 
 import '../libs/logger.dart';
 import '../models/video_model.dart';
@@ -149,7 +150,7 @@ class VideoDataCubit extends Cubit<VideoDataState> {
   }
 
   /// 加载视频数据
-  Future<List<VideoModel>> _loadVideoData({required int page, int size = 200}) async {
+  Future<List<VideoModel>> _loadVideoData({required int page, int size = 200, int concurrency = 20}) async {
     // 获取视频路径
     final List<AssetPathEntity> paths = await PhotoManager.getAssetPathList(
       onlyAll: true,
@@ -164,18 +165,26 @@ class VideoDataCubit extends Cubit<VideoDataState> {
         size: size, // 可以根据需要调整批次大小
       );
 
-      for (final videoEntity in videoAssets) {
-        final metadata = await _getVideoMetadata(videoEntity.id);
+      // 使用 Pool 控制并发数为 20
+      final pool = Pool(concurrency);
 
-        videos.add(VideoModel(
-          id: videoEntity.id,
-          duration: videoEntity.duration.toDouble(),
-          width: videoEntity.width,
-          height: videoEntity.height,
-          sizeBytes: metadata?['fileSize'] ?? 0,
-          creationDate: videoEntity.createDateTime,
-          title: metadata?['title'] ?? videoEntity.title ?? 'unknown',
-        ));
+      try {
+        final results = await Future.wait(videoAssets.map((videoEntity) => pool.withResource(() async {
+              final metadata = await _getVideoMetadata(videoEntity.id);
+              return VideoModel(
+                id: videoEntity.id,
+                duration: videoEntity.duration.toDouble(),
+                width: videoEntity.width,
+                height: videoEntity.height,
+                sizeBytes: metadata?['fileSize'] ?? 0,
+                creationDate: videoEntity.createDateTime,
+                title: metadata?['title'] ?? videoEntity.title ?? 'unknown',
+              );
+            })));
+
+        videos.addAll(results);
+      } finally {
+        await pool.close();
       }
     }
 

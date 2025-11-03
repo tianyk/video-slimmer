@@ -26,6 +26,7 @@ dependencies:
   remixicon: ^1.4.1
   ffmpeg_kit_flutter_new: ^4.1.0
   uuid: ^4.5.1
+  pool: ^1.5.1
 
 dev_dependencies:
   flutter_test:
