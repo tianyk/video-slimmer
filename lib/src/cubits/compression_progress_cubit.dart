@@ -254,7 +254,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           status: status,
           progress: progress ?? v.progress,
           errorMessage: errorMessage,
-          outputPath: outputPath,
+          outputPath: outputPath ?? v.outputPath,
+          compressedSize: compressedSize ?? v.compressedSize,
         );
       }
       return v;
