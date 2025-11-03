@@ -448,6 +448,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           _logger.debug('FFmpeg统计', {
             'progress': '${(progress * 100).toStringAsFixed(1)}%',
             'time': '${(timeMs / 1000).toStringAsFixed(1)}s/${(totalMs / 1000).toStringAsFixed(1)}s',
+            'speed': '${speed.toStringAsFixed(1)}x',
             'remaining': '${remaining.inMinutes}分${remaining.inSeconds % 60}秒',
           });
 
