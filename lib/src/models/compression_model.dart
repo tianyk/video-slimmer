@@ -34,7 +34,7 @@ class CompressionConfig {
   final double? estimatedCompressionRatio;
 
   const CompressionConfig({
-    this.preset = CompressionPreset.balanced,
+    this.preset = CompressionPreset.highQuality,
     this.customResolution,
     this.customCRF,
     this.customBitrate,
@@ -63,12 +63,14 @@ class CompressionConfig {
       customResolution: customResolution ?? this.customResolution,
       customCRF: customCRF ?? this.customCRF,
       customBitrate: customBitrate ?? this.customBitrate,
-      keepOriginalFrameRate: keepOriginalFrameRate ?? this.keepOriginalFrameRate,
+      keepOriginalFrameRate:
+          keepOriginalFrameRate ?? this.keepOriginalFrameRate,
       customFrameRate: customFrameRate ?? this.customFrameRate,
       keepOriginalAudio: keepOriginalAudio ?? this.keepOriginalAudio,
       audioQuality: audioQuality ?? this.audioQuality,
       estimatedSize: estimatedSize ?? this.estimatedSize,
-      estimatedCompressionRatio: estimatedCompressionRatio ?? this.estimatedCompressionRatio,
+      estimatedCompressionRatio:
+          estimatedCompressionRatio ?? this.estimatedCompressionRatio,
     );
   }
 
