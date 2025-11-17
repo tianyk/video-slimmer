@@ -686,7 +686,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   /// 改进点：
   /// - 修复原始编码检测逻辑错误
   /// - 精确保留元数据（GPS 位置、QuickTime keys）
-  /// - 修复视频旋转问题（移除 -noautorotate，自动应用旋转矩阵）
   /// - 优化 VideoToolbox 参数（去掉不必要的 hwaccel_output_format）
   /// - 自动选择 .mov 输出容器（iOS 最兼容）
   /// - 保留 data streams（Dolby Vision 等 HDR 元数据）
@@ -766,7 +765,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     args.addAll(['-err_detect', 'ignore_err', '-strict', 'experimental']);
 
     // === 输入 ===
-    // 移除 -noautorotate，让 FFmpeg 自动应用旋转矩阵，避免视频方向错误
     args.addAll(['-i', _q(inputPath)]);
 
     // === 流映射 ===
