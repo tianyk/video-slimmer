@@ -49,21 +49,29 @@ class CompressionProgressState extends Equatable {
   }
 
   /// 获取已完成的视频数量
-  int get completedCount => videos.where((v) => v.status == VideoCompressionStatus.completed).length;
+  int get completedCount =>
+      videos.where((v) => v.status == VideoCompressionStatus.completed).length;
 
   /// 是否所有视频都已处理
   bool get isAllProcessed {
-    return videos.every((video) => video.status == VideoCompressionStatus.completed || video.status == VideoCompressionStatus.cancelled || video.status == VideoCompressionStatus.error);
+    return videos.every((video) =>
+        video.status == VideoCompressionStatus.completed ||
+        video.status == VideoCompressionStatus.cancelled ||
+        video.status == VideoCompressionStatus.error);
   }
 
   /// 是否有正在进行的压缩
-  bool get hasActiveCompression => videos.any((video) => video.status == VideoCompressionStatus.compressing);
+  bool get hasActiveCompression =>
+      videos.any((video) => video.status == VideoCompressionStatus.compressing);
 
   /// 计算总原始大小
-  int get totalOriginalSize => videos.fold(0, (sum, video) => sum + video.video.sizeBytes);
+  int get totalOriginalSize =>
+      videos.fold(0, (sum, video) => sum + video.video.sizeBytes);
 
   /// 计算总压缩后大小
-  int get totalCompressedSize => videos.where((video) => video.compressedSize != null).fold(0, (sum, video) => sum + video.compressedSize!);
+  int get totalCompressedSize => videos
+      .where((video) => video.compressedSize != null)
+      .fold(0, (sum, video) => sum + video.compressedSize!);
 
   /// 格式化总节省空间
   String get formattedTotalSavings {
@@ -88,7 +96,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   // MethodChannel for iOS native API
   static const _platform = MethodChannel('cc.kekek.videoslimmer');
   // EventChannel for progress updates
-  static const _progressChannel = EventChannel('cc.kekek.videoslimmer/progress');
+  static const _progressChannel =
+      EventChannel('cc.kekek.videoslimmer/progress');
 
   StreamSubscription? _progressSubscription;
 
@@ -154,14 +163,22 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       });
       return VideoCompressionInfo(
         video: video,
-        status: isLocallyAvailable ? VideoCompressionStatus.waiting : VideoCompressionStatus.waitingDownload,
+        status: isLocallyAvailable
+            ? VideoCompressionStatus.waiting
+            : VideoCompressionStatus.waitingDownload,
         progress: 0.0,
       );
     }).toList());
 
     // 将需要压缩和下载的视频 ID 添加到队列中
-    _videoIdsToCompress.addAll(videoInfos.where((info) => info.status == VideoCompressionStatus.waiting).map((info) => info.video.id).toList());
-    _videoIdsToDownload.addAll(videoInfos.where((info) => info.status == VideoCompressionStatus.waitingDownload).map((info) => info.video.id).toList());
+    _videoIdsToCompress.addAll(videoInfos
+        .where((info) => info.status == VideoCompressionStatus.waiting)
+        .map((info) => info.video.id)
+        .toList());
+    _videoIdsToDownload.addAll(videoInfos
+        .where((info) => info.status == VideoCompressionStatus.waitingDownload)
+        .map((info) => info.video.id)
+        .toList());
 
     emit(state.copyWith(videos: videoInfos));
   }
@@ -194,7 +211,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           // 获取视频文件路径，触发下载，下载完成后会自动更新视频状态为等待压缩
           await _ensureVideoFilePath(videoInfo.video.id);
           // 更新视频状态为等待压缩
-          _updateVideoStatus(videoId, VideoCompressionStatus.waiting, progress: 0.0);
+          _updateVideoStatus(videoId, VideoCompressionStatus.waiting,
+              progress: 0.0);
           _logger.info('下载视频完成', {'videoId': videoId});
           // 添加到压缩队列
           _videoIdsToCompress.add(videoId);
@@ -203,7 +221,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       } catch (e) {
         _logger.error('处理下载任务失败', error: e, data: {'videoId': videoId});
         // 如果下载任务失败，则更新视频状态为错误
-        _updateVideoStatus(videoId, VideoCompressionStatus.error, errorMessage: e.toString());
+        _updateVideoStatus(videoId, VideoCompressionStatus.error,
+            errorMessage: e.toString());
       }
     }
   }
@@ -222,9 +241,16 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           final outputPath = await _runFfmpegForVideo(videoInfo);
           // 获取压缩后文件大小
           final compressedSize = await _readFileSize(outputPath);
-          _logger.debug('压缩后文件大小', {'videoId': videoId, 'outputPath': outputPath, 'compressedSize': compressedSize});
+          _logger.debug('压缩后文件大小', {
+            'videoId': videoId,
+            'outputPath': outputPath,
+            'compressedSize': compressedSize
+          });
           // 更新视频状态为已完成
-          _updateVideoStatus(videoId, VideoCompressionStatus.completed, progress: 1.0, outputPath: outputPath, compressedSize: compressedSize);
+          _updateVideoStatus(videoId, VideoCompressionStatus.completed,
+              progress: 1.0,
+              outputPath: outputPath,
+              compressedSize: compressedSize);
         }
       } catch (e) {
         _logger.error('处理视频压缩失败', error: e, data: {'videoId': videoId});
@@ -234,7 +260,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           // _updateVideoStatus(videoId, VideoCompressionStatus.cancelled);
         } else {
           // 如果处理失败，则更新视频状态为错误
-          _updateVideoStatus(videoId, VideoCompressionStatus.error, errorMessage: e.toString());
+          _updateVideoStatus(videoId, VideoCompressionStatus.error,
+              errorMessage: e.toString());
         }
       }
     }
@@ -409,7 +436,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
                 completer.completeError(Exception('canceled'));
               }
             } else {
-              final String logs = (await session.getAllLogsAsString()) ?? '未知错误';
+              final String logs =
+                  (await session.getAllLogsAsString()) ?? '未知错误';
               _logger.error('压缩失败', data: {
                 'videoId': videoInfo.video.id,
                 'returnCode': returnCode?.getValue(),
@@ -417,11 +445,13 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
               });
 
               if (!completer.isCompleted) {
-                completer.completeError(Exception('压缩失败: ${returnCode?.getValue()}'));
+                completer.completeError(
+                    Exception('压缩失败: ${returnCode?.getValue()}'));
               }
             }
           } catch (e) {
-            _logger.error('FFmpeg回调异常', error: e, data: {'videoId': videoInfo.video.id});
+            _logger.error('FFmpeg回调异常',
+                error: e, data: {'videoId': videoInfo.video.id});
             if (!completer.isCompleted) {
               completer.completeError(e);
             }
@@ -454,16 +484,20 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           // 预估剩余时间
           // 计算公式：剩余视频时长 / 处理速度
           // 例如：还剩 30 秒视频，处理速度 1.5x，则需要 30/1.5 = 20 秒实际时间
-          final Duration remaining = speed > 0 ? Duration(milliseconds: ((totalMs - timeMs) / speed).round()) : Duration.zero;
+          final Duration remaining = speed > 0
+              ? Duration(milliseconds: ((totalMs - timeMs) / speed).round())
+              : Duration.zero;
 
           _logger.debug('FFmpeg统计', {
             'progress': '${(progress * 100).toStringAsFixed(1)}%',
-            'time': '${(timeMs / 1000).toStringAsFixed(1)}s/${(totalMs / 1000).toStringAsFixed(1)}s',
+            'time':
+                '${(timeMs / 1000).toStringAsFixed(1)}s/${(totalMs / 1000).toStringAsFixed(1)}s',
             'speed': '${speed.toStringAsFixed(1)}x',
             'remaining': '${remaining.inMinutes}分${remaining.inSeconds % 60}秒',
           });
 
-          _updateVideoProgress(videoInfo.video.id, progress, remaining.inSeconds);
+          _updateVideoProgress(
+              videoInfo.video.id, progress, remaining.inSeconds);
         },
       );
 
@@ -487,7 +521,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   /// - 原视频：'/path/to/IMG_1234.MOV' → '/tmp/xxx/a3f2b1c4-5d6e-7f8a-9b0c-1d2e3f4a5b6c.MOV'
   /// - 原视频：'/path/to/video.mp4' → '/tmp/xxx/b4c3d2e1-6f7a-8b9c-0d1e-2f3a4b5c6d7e.mp4'
   Future<String> _buildOutputPath(String inputPath) async {
-    final Directory dir = await Directory.systemTemp.createTemp('video_compression_');
+    final Directory dir =
+        await Directory.systemTemp.createTemp('video_compression_');
 
     // 使用 path 包提取扩展名（包含点号，如 '.mov'）
     String ext = path.extension(inputPath);
@@ -514,7 +549,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   /// 返回视频编码器名称，如 'hevc', 'h264', 'vp9' 等
   Future<String?> _detectVideoCodec(String videoPath) async {
     try {
-      final MediaInformationSession session = await FFprobeKit.getMediaInformation(videoPath);
+      final MediaInformationSession session =
+          await FFprobeKit.getMediaInformation(videoPath);
       final mediaInformation = session.getMediaInformation();
 
       if (mediaInformation == null) {
@@ -556,7 +592,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   Future<VideoMetadata?> _getVideoMetadata(String videoPath) async {
     try {
       // 使用 FFprobe 获取媒体信息
-      final MediaInformationSession session = await FFprobeKit.getMediaInformation(videoPath);
+      final MediaInformationSession session =
+          await FFprobeKit.getMediaInformation(videoPath);
       final mediaInformation = session.getMediaInformation();
 
       if (mediaInformation == null) {
@@ -569,7 +606,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       final durationStr = mediaInformation.getDuration();
       final bitrateStr = mediaInformation.getBitrate();
 
-      final double? duration = durationStr != null ? double.tryParse(durationStr) : null;
+      final double? duration =
+          durationStr != null ? double.tryParse(durationStr) : null;
       final int? bitrate = bitrateStr != null ? int.tryParse(bitrateStr) : null;
 
       // 解析流信息
@@ -588,7 +626,9 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
             width: props?['width'],
             height: props?['height'],
             frameRate: props?['r_frame_rate'],
-            bitrate: props?['bit_rate'] != null ? int.tryParse(props!['bit_rate'].toString()) : null,
+            bitrate: props?['bit_rate'] != null
+                ? int.tryParse(props!['bit_rate'].toString())
+                : null,
             pixelFormat: props?['pix_fmt'],
             colorSpace: props?['color_space'],
             colorPrimaries: props?['color_primaries'],
@@ -598,9 +638,13 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           // 解析音频流
           audioStream = AudioStreamInfo(
             codecName: props?['codec_name'],
-            sampleRate: props?['sample_rate'] != null ? int.tryParse(props!['sample_rate'].toString()) : null,
+            sampleRate: props?['sample_rate'] != null
+                ? int.tryParse(props!['sample_rate'].toString())
+                : null,
             channels: props?['channels'],
-            bitrate: props?['bit_rate'] != null ? int.tryParse(props!['bit_rate'].toString()) : null,
+            bitrate: props?['bit_rate'] != null
+                ? int.tryParse(props!['bit_rate'].toString())
+                : null,
           );
         }
       }
@@ -610,11 +654,14 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       final rawTags = mediaInformation.getTags();
       if (rawTags != null && rawTags.isNotEmpty) {
         tags = MetadataTags(
-          creationTime: rawTags['creation_time'] ?? rawTags['com.apple.quicktime.creationdate'],
-          location: rawTags['location'] ?? rawTags['com.apple.quicktime.location.ISO6709'],
+          creationTime: rawTags['creation_time'] ??
+              rawTags['com.apple.quicktime.creationdate'],
+          location: rawTags['location'] ??
+              rawTags['com.apple.quicktime.location.ISO6709'],
           make: rawTags['make'] ?? rawTags['com.apple.quicktime.make'],
           model: rawTags['model'] ?? rawTags['com.apple.quicktime.model'],
-          software: rawTags['software'] ?? rawTags['com.apple.quicktime.software'],
+          software:
+              rawTags['software'] ?? rawTags['com.apple.quicktime.software'],
         );
       }
 
@@ -638,10 +685,10 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   ///
   /// 改进点：
   /// - 修复原始编码检测逻辑错误
-  /// - 简化元数据复制逻辑（防止警告）
+  /// - 精确保留元数据（GPS 位置、QuickTime keys）
+  /// - 修复视频旋转问题（移除 -noautorotate，自动应用旋转矩阵）
   /// - 优化 VideoToolbox 参数（去掉不必要的 hwaccel_output_format）
   /// - 自动选择 .mov 输出容器（iOS 最兼容）
-  /// - 合并 movflags，确保 faststart 与 metadata 同时生效
   /// - 保留 data streams（Dolby Vision 等 HDR 元数据）
   /// - 保留色彩空间信息（HDR 视频）
   Future<String> _buildFfmpegCommand({
@@ -664,7 +711,9 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     final String? colorSpace = metadata?.videoStream?.colorSpace;
     final String? colorPrimaries = metadata?.videoStream?.colorPrimaries;
     final String? colorTransfer = metadata?.videoStream?.colorTransfer;
-    final bool isHdrVideo = colorSpace == 'bt2020nc' || colorTransfer == 'arib-std-b67' || colorTransfer == 'smpte2084';
+    final bool isHdrVideo = colorSpace == 'bt2020nc' ||
+        colorTransfer == 'arib-std-b67' ||
+        colorTransfer == 'smpte2084';
 
     if (isHdrVideo) {
       _logger.info('检测到HDR视频', {
@@ -674,7 +723,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       });
     }
 
-    final bool isHevc = originalCodec?.contains('hevc') == true || originalCodec?.contains('h265') == true;
+    final bool isHevc = originalCodec?.contains('hevc') == true ||
+        originalCodec?.contains('h265') == true;
     final bool useHardwareAcceleration = _shouldUseHardwareAcceleration();
 
     // 根据编码格式选择编码器与标签
@@ -716,7 +766,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     args.addAll(['-err_detect', 'ignore_err', '-strict', 'experimental']);
 
     // === 输入 ===
-    args.addAll(['-noautorotate', '-i', _q(inputPath)]);
+    // 移除 -noautorotate，让 FFmpeg 自动应用旋转矩阵，避免视频方向错误
+    args.addAll(['-i', _q(inputPath)]);
 
     // === 流映射 ===
     // 映射视频流、音频流，并尝试保留 data streams（包含 Dolby Vision 等 HDR 元数据）
@@ -727,13 +778,20 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     ]);
 
     // === 元数据保留 ===
+    // 精确保留元数据，包括 GPS 位置信息（QuickTime location keys）
     args.addAll([
-      '-map_metadata',
-      '0',
-      '-map_chapters',
-      '0',
-      '-movflags',
-      'use_metadata_tags+faststart',
+      '-map_metadata', '0', // 全局元数据（包含 QuickTime keys）
+      '-map_metadata:s:v', '0:s:v', // 视频流元数据
+      '-map_metadata:s:a', '0:s:a', // 音频流元数据
+      '-map_chapters', '0', // 章节信息
+      '-movflags', 'faststart', // 移除 use_metadata_tags，避免丢失 QuickTime 特定标签
+    ]);
+
+    // === 旋转元数据处理 ===
+    // FFmpeg 已在解码时应用旋转矩阵，输出帧已是正确方向，清除旋转元数据避免重复旋转
+    args.addAll([
+      '-metadata:s:v:0',
+      'rotate=0',
     ]);
 
     // === 视频编码 ===
@@ -841,12 +899,14 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   }
 
   /// 更新视频压缩进度
-  void _updateVideoProgress(String videoId, double progress, int remainingSeconds) {
+  void _updateVideoProgress(
+      String videoId, double progress, int remainingSeconds) {
     final updatedVideos = state.videos.map((video) {
       if (video.video.id == videoId) {
         return video.copyWith(
           progress: progress,
-          estimatedTimeRemaining: remainingSeconds > 0 ? remainingSeconds : null,
+          estimatedTimeRemaining:
+              remainingSeconds > 0 ? remainingSeconds : null,
         );
       }
       return video;
@@ -900,7 +960,9 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     final updatedVideos = state.videos.map((video) {
       if (video.video.id == videoId) {
         // 根据视频是否已下载，决定重置为等待下载还是等待压缩状态
-        final VideoCompressionStatus newStatus = isLocallyAvailable ? VideoCompressionStatus.waiting : VideoCompressionStatus.waitingDownload;
+        final VideoCompressionStatus newStatus = isLocallyAvailable
+            ? VideoCompressionStatus.waiting
+            : VideoCompressionStatus.waitingDownload;
 
         return video.copyWith(
           status: newStatus,
@@ -940,7 +1002,9 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     _videoIdsToDownload.clear();
 
     final updatedVideos = state.videos.map((video) {
-      if (video.status == VideoCompressionStatus.waiting || video.status == VideoCompressionStatus.downloading || video.status == VideoCompressionStatus.compressing) {
+      if (video.status == VideoCompressionStatus.waiting ||
+          video.status == VideoCompressionStatus.downloading ||
+          video.status == VideoCompressionStatus.compressing) {
         return video.copyWith(
           status: VideoCompressionStatus.cancelled,
           progress: 0.0,
@@ -974,7 +1038,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
       // 2. 构建新文件名：原始文件名 + _compressed 后缀
       String newTitle;
-      if (videoInfo.video.title.isNotEmpty && videoInfo.video.title != 'unknown') {
+      if (videoInfo.video.title.isNotEmpty &&
+          videoInfo.video.title != 'unknown') {
         // 移除扩展名（如 .MOV、.mp4）
         final originalFilename = videoInfo.video.title;
         final nameWithoutExt = originalFilename.split('.').first;
