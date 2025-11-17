@@ -246,6 +246,38 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
             'outputPath': outputPath,
             'compressedSize': compressedSize
           });
+
+          // 获取并打印压缩后视频的meta信息
+          final compressedMetadata = await _getVideoMetadata(outputPath);
+          if (compressedMetadata != null) {
+            // 打印所有原始标签用于调试
+            _logger.debug('压缩后视频所有元数据标签', {
+              'videoId': videoId,
+              'tags': compressedMetadata.tags.toString(),
+            });
+
+            // 单独强调位置信息
+            if (compressedMetadata.tags?.location != null) {
+              _logger.info('压缩后视频位置信息已保留', {
+                'videoId': videoId,
+                'location': compressedMetadata.tags?.location,
+                'creationTime': compressedMetadata.tags?.creationTime,
+                'make': compressedMetadata.tags?.make,
+                'model': compressedMetadata.tags?.model,
+              });
+            } else {
+              _logger.warning('压缩后视频未找到位置信息', {
+                'videoId': videoId,
+                'outputPath': outputPath,
+              });
+            }
+          } else {
+            _logger.error('无法获取压缩后视频的元数据', data: {
+              'videoId': videoId,
+              'outputPath': outputPath,
+            });
+          }
+
           // 更新视频状态为已完成
           _updateVideoStatus(videoId, VideoCompressionStatus.completed,
               progress: 1.0,
@@ -398,6 +430,27 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
       // 从 videoId 获取文件路径
       final inputPath = await _ensureVideoFilePath(videoInfo.video.id);
+
+      final originalMetadata = await _getVideoMetadata(inputPath);
+      if (originalMetadata != null) {
+        // 打印原视频位置信息
+        if (originalMetadata.tags?.location != null) {
+          _logger.info('原视频位置信息', {
+            'videoId': videoInfo.video.id,
+            'originalPath': videoInfo.originalFilePath,
+            'location': originalMetadata.tags?.location,
+            'creationTime': originalMetadata.tags?.creationTime,
+            'make': originalMetadata.tags?.make,
+            'model': originalMetadata.tags?.model,
+          });
+        } else {
+          _logger.warning('原视频未找到位置信息', {
+            'videoId': videoInfo.video.id,
+            'originalPath': videoInfo.originalFilePath,
+          });
+        }
+      }
+
       // 构建输出文件路径
       final String outputPath = await _buildOutputPath(inputPath);
       _logger.info('开始压缩视频', {
@@ -652,6 +705,14 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       // 解析元数据标签
       MetadataTags? tags;
       final rawTags = mediaInformation.getTags();
+
+      // 打印所有原始标签用于调试
+      _logger.debug('FFprobe 原始标签', {
+        'videoPath': videoPath,
+        'rawTags': rawTags?.toString() ?? 'null',
+        'tagsKeys': rawTags?.keys.toList().toString() ?? 'null',
+      });
+
       if (rawTags != null && rawTags.isNotEmpty) {
         tags = MetadataTags(
           creationTime: rawTags['creation_time'] ??
@@ -663,6 +724,13 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           software:
               rawTags['software'] ?? rawTags['com.apple.quicktime.software'],
         );
+
+        // 单独打印位置信息用于调试
+        _logger.debug('位置元数据解析', {
+          'location_std': rawTags['location'],
+          'location_quicktime': rawTags['com.apple.quicktime.location.ISO6709'],
+          'parsed_location': tags.location,
+        });
       }
 
       return VideoMetadata(
@@ -782,6 +850,43 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       '-map_metadata:s:v', '0:s:v', // 视频流元数据
       '-map_metadata:s:a', '0:s:a', // 音频流元数据
       '-map_chapters', '0', // 章节信息
+    ]);
+
+    // 显式保留 QuickTime 位置元数据
+    if (metadata?.tags?.location != null) {
+      final location = metadata!.tags!.location!;
+      _logger.debug('添加位置元数据到输出', {
+        'location': location,
+      });
+      args.addAll([
+        '-metadata',
+        _q('location=$location'),
+        '-metadata',
+        _q('com.apple.quicktime.location.ISO6709=$location'),
+      ]);
+    }
+
+    // 显式保留其他 QuickTime 元数据
+    if (metadata?.tags?.creationTime != null) {
+      args.addAll([
+        '-metadata',
+        _q('creation_time=${metadata!.tags!.creationTime}'),
+      ]);
+    }
+    if (metadata?.tags?.make != null) {
+      args.addAll([
+        '-metadata',
+        _q('make=${metadata!.tags!.make}'),
+      ]);
+    }
+    if (metadata?.tags?.model != null) {
+      args.addAll([
+        '-metadata',
+        _q('model=${metadata!.tags!.model}'),
+      ]);
+    }
+
+    args.addAll([
       '-movflags', 'faststart', // 移除 use_metadata_tags，避免丢失 QuickTime 特定标签
     ]);
 
