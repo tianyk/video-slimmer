@@ -1130,6 +1130,38 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     }
   }
 
+  /// 删除原始视频（系统会将其移动到相册的“最近删除”中）
+  Future<void> deleteOriginalVideo(VideoCompressionInfo videoInfo) async {
+    try {
+      final PermissionState permissionState =
+          await PhotoManager.requestPermissionExtend();
+      if (!permissionState.hasAccess) {
+        _logger.warning('删除原视频失败：无相册权限', {
+          'videoId': videoInfo.video.id,
+        });
+        throw Exception('需要相册权限才能删除原视频');
+      }
+
+      _logger.info('开始删除原视频（移动到最近删除）', {
+        'videoId': videoInfo.video.id,
+      });
+
+      final List<String> deletedIds =
+          await PhotoManager.editor.deleteWithIds(<String>[videoInfo.video.id]);
+      if (deletedIds.isEmpty) {
+        throw Exception('系统未能删除原视频');
+      }
+    } catch (e, stackTrace) {
+      _logger.error(
+        '删除原视频时发生错误',
+        error: e,
+        stackTrace: stackTrace,
+        data: {'videoId': videoInfo.video.id},
+      );
+      rethrow;
+    }
+  }
+
   /// 获取日志级别字符串
   String _getLogLevelString(int level) {
     // FFmpeg 日志级别定义

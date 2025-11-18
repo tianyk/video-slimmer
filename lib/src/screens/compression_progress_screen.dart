@@ -185,18 +185,148 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
   }
 
   /// 处理视频操作
-  void _handleVideoAction(VideoCompressionInfo videoInfo, VideoAction action) {
+  Future<void> _handleVideoAction(
+      VideoCompressionInfo videoInfo, VideoAction action) async {
     switch (action) {
       case VideoAction.cancel:
         _showCancelVideoConfirmation(context, videoInfo);
         break;
       case VideoAction.retry:
-        _progressCubit.retryVideo(videoInfo.video.id);
+        try {
+          await _progressCubit.retryVideo(videoInfo.video.id);
+        } catch (error) {
+          if (!mounted) return;
+          _showErrorDialog(
+            title: '重新压缩失败',
+            message: '无法重新压缩视频，请稍后重试',
+            error: error.toString(),
+          );
+        }
         break;
       case VideoAction.saveToPhotos:
-        _progressCubit.saveVideoToPhotos(videoInfo);
+        _executeSaveToPhotos(videoInfo);
         break;
     }
+  }
+
+  /// 保存压缩视频到相册
+  Future<void> _executeSaveToPhotos(VideoCompressionInfo videoInfo) async {
+    try {
+      await _progressCubit.saveVideoToPhotos(videoInfo);
+    } catch (error) {
+      if (!mounted) return;
+      _showErrorDialog(
+        title: '保存失败',
+        message: '无法保存压缩视频到相册，请检查相册权限和存储空间',
+        error: error.toString(),
+      );
+      return;
+    }
+
+    try {
+      await _progressCubit.deleteOriginalVideo(videoInfo);
+      if (!mounted) return;
+      _showSnackBar('已保存压缩视频并删除原视频');
+    } catch (_) {
+      // ignore: empty_catches
+    }
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppTheme.prosperityGold,
+      ),
+    );
+  }
+
+  /// 显示错误对话框
+  void _showErrorDialog({
+    required String title,
+    required String message,
+    required String error,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.prosperityGray,
+        title: Row(
+          children: [
+            const Icon(Icons.error_outline,
+                color: AppTheme.prosperityDarkGold, size: 28),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(color: AppTheme.prosperityGold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              message,
+              style: const TextStyle(
+                color: AppTheme.prosperityLightGold,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Theme(
+              data: Theme.of(context).copyWith(
+                dividerColor: Colors.transparent,
+              ),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: const Text(
+                  '查看详细错误',
+                  style: TextStyle(
+                    color: AppTheme.prosperityLightGold,
+                    fontSize: 14,
+                  ),
+                ),
+                iconColor: AppTheme.prosperityLightGold,
+                collapsedIconColor: AppTheme.prosperityLightGold,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: SelectableText(
+                      error,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(
+              '关闭',
+              style: TextStyle(color: AppTheme.prosperityLightGold),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 显示取消视频确认对话框
@@ -230,8 +360,8 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
               _progressCubit.cancelVideo(videoInfo.video.id);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+              backgroundColor: AppTheme.prosperityDarkGold,
+              foregroundColor: AppTheme.prosperityBlack,
             ),
             child: const Text('确定'),
           ),
@@ -268,8 +398,8 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
               _progressCubit.cancelAllCompression();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+              backgroundColor: AppTheme.prosperityDarkGold,
+              foregroundColor: AppTheme.prosperityBlack,
             ),
             child: const Text('停止所有'),
           ),
@@ -303,8 +433,8 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+              backgroundColor: AppTheme.prosperityDarkGold,
+              foregroundColor: AppTheme.prosperityBlack,
             ),
             child: const Text('退出'),
           ),
@@ -386,35 +516,13 @@ class _VideoProgressItem extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // 状态信息
-                      Row(
-                        children: [
-                          // 视频文件大小，格式化显示
-                          Text(
-                            videoInfo.video.fileSize,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.prosperityLightGold,
-                            ),
-                          ),
-                          if (videoInfo.compressedSize != null) ...[
-                            const Text(
-                              ' 压缩后：',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: AppTheme.prosperityLightGray,
-                              ),
-                            ),
-                            Text(
-                              videoInfo.formattedCompressedSize,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: AppTheme.prosperityGold,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ],
+                      Text(
+                        videoInfo.video.fileSize,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.prosperityLightGold,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Row(
@@ -592,15 +700,15 @@ class _VideoProgressItem extends StatelessWidget {
       case VideoCompressionStatus.waiting:
         return AppTheme.prosperityLightGold;
       case VideoCompressionStatus.downloading:
-        return Colors.blue;
+        return AppTheme.prosperityLightGold;
       case VideoCompressionStatus.compressing:
         return AppTheme.prosperityGold;
       case VideoCompressionStatus.completed:
-        return Colors.green;
+        return AppTheme.prosperityGold;
       case VideoCompressionStatus.cancelled:
         return AppTheme.prosperityLightGray;
       case VideoCompressionStatus.error:
-        return Colors.red;
+        return AppTheme.prosperityDarkGold;
     }
   }
 
