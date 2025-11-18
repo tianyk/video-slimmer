@@ -1,7 +1,15 @@
 import 'package:photo_manager/photo_manager.dart';
 
 /// 星期几的中文表示
-const List<String> _weekdays = <String>['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+const List<String> _weekdays = <String>[
+  '周一',
+  '周二',
+  '周三',
+  '周四',
+  '周五',
+  '周六',
+  '周日'
+];
 
 /// 将日期格式化为友好的中文字符串
 ///

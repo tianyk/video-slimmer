@@ -664,6 +664,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
           model: rawTags['model'] ?? rawTags['com.apple.quicktime.model'],
           software:
               rawTags['software'] ?? rawTags['com.apple.quicktime.software'],
+          encoder: rawTags['encoder'],
+          comment: rawTags['comment'],
         );
       }
 
@@ -816,6 +818,15 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
         _q('model=${metadata!.tags!.model}'),
       ]);
     }
+
+    // 添加应用压缩标识元数据
+    // 用于后续识别视频是否已被当前应用压缩过
+    args.addAll([
+      '-metadata',
+      _q('comment=Compressed by VideoSlimmer'),
+      '-metadata',
+      _q('encoder=VideoSlimmer'),
+    ]);
 
     args.addAll([
       '-movflags', 'faststart', // 移除 use_metadata_tags，避免丢失 QuickTime 特定标签

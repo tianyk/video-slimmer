@@ -47,14 +47,16 @@ class VideoMetadata {
     if (duration == null) return '未知';
     final minutes = (duration! / 60).floor();
     final seconds = (duration! % 60).floor();
-    return '${minutes}分${seconds}秒';
+    return '$minutes分$seconds秒';
   }
 
   /// 格式化码率
   String get formattedBitrate {
     if (bitrate == null) return '未知';
     if (bitrate! < 1000) return '$bitrate bps';
-    if (bitrate! < 1000000) return '${(bitrate! / 1000).toStringAsFixed(1)} Kbps';
+    if (bitrate! < 1000000) {
+      return '${(bitrate! / 1000).toStringAsFixed(1)} Kbps';
+    }
     return '${(bitrate! / 1000000).toStringAsFixed(2)} Mbps';
   }
 }
@@ -104,7 +106,9 @@ class VideoStreamInfo {
   String get formattedBitrate {
     if (bitrate == null) return '未知';
     if (bitrate! < 1000) return '$bitrate bps';
-    if (bitrate! < 1000000) return '${(bitrate! / 1000).toStringAsFixed(1)} Kbps';
+    if (bitrate! < 1000000) {
+      return '${(bitrate! / 1000).toStringAsFixed(1)} Kbps';
+    }
     return '${(bitrate! / 1000000).toStringAsFixed(2)} Mbps';
   }
 }
@@ -134,7 +138,9 @@ class AudioStreamInfo {
   String get formattedBitrate {
     if (bitrate == null) return '未知';
     if (bitrate! < 1000) return '$bitrate bps';
-    if (bitrate! < 1000000) return '${(bitrate! / 1000).toStringAsFixed(1)} Kbps';
+    if (bitrate! < 1000000) {
+      return '${(bitrate! / 1000).toStringAsFixed(1)} Kbps';
+    }
     return '${(bitrate! / 1000000).toStringAsFixed(2)} Mbps';
   }
 }
@@ -156,12 +162,20 @@ class MetadataTags {
   /// 软件版本
   final String? software;
 
+  /// 编码器信息
+  final String? encoder;
+
+  /// 注释信息
+  final String? comment;
+
   const MetadataTags({
     this.creationTime,
     this.location,
     this.make,
     this.model,
     this.software,
+    this.encoder,
+    this.comment,
   });
 }
 
