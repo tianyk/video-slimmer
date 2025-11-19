@@ -820,10 +820,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     }
 
     // 添加应用压缩标识元数据
-    // 用于后续识别视频是否已被当前应用压缩过
     args.addAll([
-      '-metadata',
-      _q('comment=Compressed by VideoSlimmer'),
       '-metadata',
       _q('encoder=VideoSlimmer'),
     ]);
@@ -1094,13 +1091,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
         // 如果无法获取原始文件名，使用时间戳
         newTitle = 'compressed_${DateTime.now().millisecondsSinceEpoch}';
       }
-
-      _logger.info('保存视频到相册', {
-        'videoId': videoInfo.video.id,
-        'originalTitle': videoInfo.video.title,
-        'newTitle': newTitle,
-        'outputPath': videoInfo.outputPath,
-      });
 
       // 3. 检查文件是否存在
       final file = File(videoInfo.outputPath!);

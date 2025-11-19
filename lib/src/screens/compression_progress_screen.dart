@@ -152,7 +152,8 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
                 ],
               ),
               child: ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () =>
+                    Navigator.of(context).popUntil((route) => route.isFirst),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.prosperityGold,
                   foregroundColor: AppTheme.prosperityBlack,
