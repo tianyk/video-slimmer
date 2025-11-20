@@ -3,6 +3,9 @@ class AppConstants {
   static const String i18nAssetsDirectory = 'assets/i18n';
   static const String fallbackLocaleCode = 'en-US';
 
+  // File name related
+  static const String compressedSuffix = '_compressed';
+
   // 权限相关
   static const String permissionTitle = '访问相册权限';
   static const String permissionDescription =

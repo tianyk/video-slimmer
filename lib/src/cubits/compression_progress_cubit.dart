@@ -14,6 +14,7 @@ import 'package:path/path.dart' as path;
 import 'package:photo_manager/photo_manager.dart';
 import 'package:uuid/uuid.dart';
 
+import '../constants/app_constants.dart';
 import '../libs/async_queue.dart';
 import '../libs/logger.dart';
 import '../models/compression_model.dart';
@@ -1073,9 +1074,14 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
         if (info.video.title.isNotEmpty && info.video.title != 'unknown') {
           final String originalFilename = info.video.title;
           final String nameWithoutExt = originalFilename.split('.').first;
-          newTitle = '${nameWithoutExt}_compressed';
+          // 移除压缩文件名后缀
+          String baseName =
+              nameWithoutExt.replaceAll(AppConstants.compressedSuffix, '');
+          newTitle = '$baseName${AppConstants.compressedSuffix}';
         } else {
-          newTitle = 'compressed_${DateTime.now().millisecondsSinceEpoch}';
+          // 使用时间戳作为标题
+          newTitle =
+              '${DateTime.now().millisecondsSinceEpoch}${AppConstants.compressedSuffix}';
         }
 
         final File file = File(info.outputPath!);
