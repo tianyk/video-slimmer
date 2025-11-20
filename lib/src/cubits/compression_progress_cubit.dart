@@ -1033,9 +1033,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   /// 取消所有压缩
   void cancelAllCompression() {
-    // 停止处理循环
-    _isRunning = false;
-
     // 取消所有 FFmpeg 会话
     FFmpegKit.cancel();
 
