@@ -2,10 +2,10 @@
 enum CompressionPreset {
   /// 高画质 - 保留尽可能高的质量
   highQuality(title: '高画质', description: '推荐'),
-  
+
   /// 平衡模式 - 平衡文件大小和质量
   balance(title: '平衡模式', description: '文件大小与质量平衡'),
-  
+
   /// 极限压缩 - 最小文件大小，可能损失一些质量
   extreme(title: '极限压缩', description: '适合分享');
 
@@ -40,17 +40,17 @@ class CompressionConfig {
       case CompressionPreset.highQuality:
         return const CompressionConfig(
           preset: CompressionPreset.highQuality,
-          crfValue: 23,
+          crfValue: 20,
         );
       case CompressionPreset.balance:
         return const CompressionConfig(
           preset: CompressionPreset.balance,
-          crfValue: 28,
+          crfValue: 23,
         );
       case CompressionPreset.extreme:
         return const CompressionConfig(
           preset: CompressionPreset.extreme,
-          crfValue: 35,
+          crfValue: 28,
         );
     }
   }
