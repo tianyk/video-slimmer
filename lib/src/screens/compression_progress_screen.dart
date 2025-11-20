@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../constants/app_theme.dart';
 import '../cubits/compression_progress_cubit.dart';
+import '../libs/localization.dart';
 import '../libs/logger.dart';
 import '../models/compression_model.dart';
 import '../models/compression_progress_model.dart';
@@ -68,7 +69,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
             },
             child: Scaffold(
               appBar: AppBar(
-                title: const Text('压缩进度'),
+                title: Text(tr('压缩进度')),
                 leading: IconButton(
                   icon: const Icon(Icons.arrow_back),
                   onPressed: () => _handleBackNavigation(context),
@@ -78,7 +79,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
                     IconButton(
                       icon: const Icon(Icons.stop),
                       onPressed: () => _showCancelAllConfirmation(context),
-                      tooltip: '停止所有压缩',
+                      tooltip: tr('停止所有压缩'),
                     ),
                 ],
               ),
@@ -173,12 +174,12 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.check_circle),
-                    SizedBox(width: 8),
+                  children: [
+                    const Icon(Icons.check_circle),
+                    const SizedBox(width: 8),
                     Text(
-                      '完成',
-                      style: TextStyle(
+                      tr('完成'),
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -212,8 +213,8 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
                   ),
                 ),
                 child: Text(
-                  '保存全部已压缩视频',
-                  style: TextStyle(
+                  tr('保存全部已压缩视频'),
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -240,7 +241,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
         .toList();
     if (targetIds.isEmpty) {
       if (mounted) {
-        _showSnackBar('没有可保存的压缩视频');
+        _showSnackBar(tr('没有可保存的压缩视频'));
       }
       return;
     }
@@ -251,8 +252,8 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
         return;
       }
       _showErrorDialog(
-        title: '保存失败',
-        message: '无法保存压缩视频到相册，请检查相册权限和存储空间',
+        title: tr('保存失败'),
+        message: tr('无法保存压缩视频到相册，请检查相册权限和存储空间'),
         error: error.toString(),
       );
       return;
@@ -260,7 +261,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
     if (!mounted) {
       return;
     }
-    _showSnackBar('已保存压缩视频并删除原视频');
+    _showSnackBar(tr('已保存压缩视频并删除原视频'));
   }
 
   /// 处理视频操作
@@ -276,8 +277,8 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
         } catch (error) {
           if (!mounted) return;
           _showErrorDialog(
-            title: '重新压缩失败',
-            message: '无法重新压缩视频，请稍后重试',
+            title: tr('重新压缩失败'),
+            message: tr('无法重新压缩视频，请稍后重试'),
             error: error.toString(),
           );
         }
@@ -295,8 +296,8 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
     } catch (error) {
       if (!mounted) return;
       _showErrorDialog(
-        title: '保存失败',
-        message: '无法保存压缩视频到相册，请检查相册权限和存储空间',
+        title: tr('保存失败'),
+        message: tr('无法保存压缩视频到相册，请检查相册权限和存储空间'),
         error: error.toString(),
       );
       return;
@@ -360,9 +361,9 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
               ),
               child: ExpansionTile(
                 tilePadding: EdgeInsets.zero,
-                title: const Text(
-                  '查看详细错误',
-                  style: TextStyle(
+                title: Text(
+                  tr('查看详细错误'),
+                  style: const TextStyle(
                     color: AppTheme.prosperityLightGold,
                     fontSize: 14,
                   ),
@@ -394,9 +395,9 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              '关闭',
-              style: TextStyle(color: AppTheme.prosperityLightGold),
+            child: Text(
+              tr('关闭'),
+              style: const TextStyle(color: AppTheme.prosperityLightGold),
             ),
           ),
         ],
@@ -411,22 +412,22 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.prosperityGray,
-        title: const Text(
-          '确认取消',
-          style: TextStyle(color: AppTheme.prosperityGold),
+        title: Text(
+          tr('确认取消'),
+          style: const TextStyle(color: AppTheme.prosperityGold),
         ),
         content: Text(
           videoInfo.status == VideoCompressionStatus.compressing
-              ? '确定要取消正在压缩的视频吗？\n当前进度将丢失。'
-              : '确定要从队列中移除这个视频吗？',
+              ? tr('确定要取消正在压缩的视频吗？\n当前进度将丢失。')
+              : tr('确定要从队列中移除这个视频吗？'),
           style: const TextStyle(color: AppTheme.prosperityLightGold),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              '取消',
-              style: TextStyle(color: AppTheme.prosperityLightGold),
+            child: Text(
+              tr('取消'),
+              style: const TextStyle(color: AppTheme.prosperityLightGold),
             ),
           ),
           ElevatedButton(
@@ -438,7 +439,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
               backgroundColor: AppTheme.prosperityDarkGold,
               foregroundColor: AppTheme.prosperityBlack,
             ),
-            child: const Text('确定'),
+            child: Text(tr('确定')),
           ),
         ],
       ),
@@ -451,20 +452,20 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.prosperityGray,
-        title: const Text(
-          '停止所有压缩',
-          style: TextStyle(color: AppTheme.prosperityGold),
+        title: Text(
+          tr('停止所有压缩'),
+          style: const TextStyle(color: AppTheme.prosperityGold),
         ),
-        content: const Text(
-          '确定要停止所有压缩任务吗？\n正在进行的压缩将被取消，进度将丢失。',
-          style: TextStyle(color: AppTheme.prosperityLightGold),
+        content: Text(
+          tr('确定要停止所有压缩任务吗？\n正在进行的压缩将被取消，进度将丢失。'),
+          style: const TextStyle(color: AppTheme.prosperityLightGold),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              '取消',
-              style: TextStyle(color: AppTheme.prosperityLightGold),
+            child: Text(
+              tr('取消'),
+              style: const TextStyle(color: AppTheme.prosperityLightGold),
             ),
           ),
           ElevatedButton(
@@ -476,7 +477,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
               backgroundColor: AppTheme.prosperityDarkGold,
               foregroundColor: AppTheme.prosperityBlack,
             ),
-            child: const Text('停止所有'),
+            child: Text(tr('停止所有')),
           ),
         ],
       ),
@@ -492,20 +493,22 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.prosperityGray,
-        title: const Text(
-          '确认退出',
-          style: TextStyle(color: AppTheme.prosperityGold),
+        title: Text(
+          tr('确认退出'),
+          style: const TextStyle(color: AppTheme.prosperityGold),
         ),
-        content: const Text(
-          '当前压缩任务尚未完全结束或已有压缩结果。\n退出后将无法在此页面继续查看和管理本次任务。',
-          style: TextStyle(color: AppTheme.prosperityLightGold),
+        content: Text(
+          tr(
+            '当前压缩任务尚未完全结束或已有压缩结果。\n退出后将无法在此页面继续查看和管理本次任务。',
+          ),
+          style: const TextStyle(color: AppTheme.prosperityLightGold),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(
-              '继续压缩',
-              style: TextStyle(color: AppTheme.prosperityLightGold),
+            child: Text(
+              tr('继续压缩'),
+              style: const TextStyle(color: AppTheme.prosperityLightGold),
             ),
           ),
           ElevatedButton(
@@ -514,7 +517,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
               backgroundColor: AppTheme.prosperityDarkGold,
               foregroundColor: AppTheme.prosperityBlack,
             ),
-            child: const Text('退出'),
+            child: Text(tr('退出')),
           ),
         ],
       ),
@@ -678,10 +681,10 @@ class _VideoProgressItem extends StatelessWidget {
           children: [
             Text(
               videoInfo.status == VideoCompressionStatus.compressing
-                  ? '压缩进度'
+                  ? tr('压缩进度')
                   : (videoInfo.status == VideoCompressionStatus.saved
-                      ? '已保存'
-                      : '已完成'),
+                      ? tr('已保存')
+                      : tr('已完成')),
               style: const TextStyle(
                 fontSize: 14,
                 color: AppTheme.prosperityLightGold,
@@ -700,7 +703,7 @@ class _VideoProgressItem extends StatelessWidget {
                 if (videoInfo.estimatedTimeRemaining != null) ...[
                   const SizedBox(width: 8),
                   Text(
-                    '剩余 ${videoInfo.formattedTimeRemaining}',
+                    '${tr('剩余')} ${videoInfo.formattedTimeRemaining}',
                     style: const TextStyle(
                       fontSize: 12,
                       color: AppTheme.prosperityLightGray,

@@ -1,5 +1,7 @@
 class AppConstants {
   static const String appName = '视频压缩';
+  static const String i18nAssetsDirectory = 'assets/i18n';
+  static const String fallbackLocaleCode = 'en-US';
 
   // 权限相关
   static const String permissionTitle = '访问相册权限';

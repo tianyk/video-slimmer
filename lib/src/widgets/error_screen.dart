@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:remixicon/remixicon.dart';
 
+import '../libs/localization.dart';
+
 class ErrorScreen extends StatelessWidget {
   final String errorMessage;
   final Color brandGold;
@@ -42,7 +44,7 @@ class ErrorScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  '出错啦',
+                  tr('出错啦'),
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -69,7 +71,7 @@ class ErrorScreen extends StatelessWidget {
                       vertical: 16,
                     ),
                   ),
-                  child: const Text('返回'),
+                  child: Text(tr('返回')),
                 ),
               ],
             ),

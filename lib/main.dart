@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:video_slimmer/src/services/permission_service.dart';
 import 'src/constants/app_constants.dart';
 import 'src/constants/app_theme.dart';
+import 'src/libs/localization.dart';
 import 'src/screens/home_screen.dart';
+import 'src/services/localization_service.dart';
 import 'src/widgets/permission_denied_screen.dart';
 import 'src/widgets/error_screen.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // 初始化国际化
+  await LocalizationService.instance.initialize();
   runApp(const VideoSlimmerApp());
 }
 
@@ -16,7 +21,7 @@ class VideoSlimmerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: AppConstants.appName,
+      title: tr(AppConstants.appName),
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark,
@@ -46,7 +51,7 @@ class HomeScreenWrapper extends StatelessWidget {
         if (snapshot.hasError) {
           print('snapshot.error: ${snapshot.error}');
           return ErrorScreen(
-            errorMessage: snapshot.error?.toString() ?? '未知错误',
+            errorMessage: snapshot.error?.toString() ?? tr('未知错误'),
             brandGold: AppTheme.prosperityGold,
             brandGray: AppTheme.prosperityGray,
           );

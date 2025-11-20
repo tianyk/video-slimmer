@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../constants/app_theme.dart';
 import '../cubits/compression_cubit.dart';
+import '../libs/localization.dart';
 import '../models/compression_model.dart';
 import '../models/video_model.dart';
 import 'compression_progress_screen.dart';
@@ -42,7 +43,9 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
       value: _compressionCubit,
       child: Scaffold(
         appBar: AppBar(
-          title: Text('压缩设置 (${widget.selectedVideos.length}个视频)'),
+          title: Text(
+            '${tr('压缩设置')} (${widget.selectedVideos.length}${tr('个视频')})',
+          ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(),
@@ -133,7 +136,7 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
                   const SizedBox.shrink(),
                 const SizedBox(width: 8),
                 Text(
-                  state.isCalculatingEstimate ? '计算中...' : '开始压缩',
+                  state.isCalculatingEstimate ? tr('计算中...') : tr('开始压缩'),
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -155,8 +158,8 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '预设方案',
+            Text(
+              tr('预设方案'),
               style: AppTheme.titleMedium,
             ),
             const SizedBox(height: 16),
@@ -199,15 +202,15 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '预计结果',
+            Text(
+              tr('预计结果'),
               style: AppTheme.titleMedium,
             ),
             const SizedBox(height: 16),
 
             // 原始大小
             _EstimateRow(
-              label: '原始大小:',
+              label: tr('原始大小:'),
               value: state.formattedOriginalSize,
               icon: Icons.video_library,
             ),
@@ -216,7 +219,7 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
 
             // 压缩后大小
             _EstimateRow(
-              label: '压缩后约:',
+              label: tr('压缩后约:'),
               value:
                   '${state.formattedEstimatedSize} (${state.compressionPercentage})',
               icon: Icons.compress,
@@ -227,7 +230,7 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
 
             // 节省空间
             _EstimateRow(
-              label: '节省空间:',
+              label: tr('节省空间:'),
               value: state.formattedSavings,
               icon: Icons.storage,
               valueColor: AppTheme.prosperityGold,

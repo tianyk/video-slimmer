@@ -1,3 +1,4 @@
+import '../libs/localization.dart';
 import '../utils.dart';
 
 /// 压缩配置模型 - 定义视频压缩的各种参数
@@ -78,11 +79,11 @@ class CompressionConfig {
   String get displayName {
     switch (preset) {
       case CompressionPreset.highQuality:
-        return '高画质';
+        return tr('高画质');
       case CompressionPreset.balanced:
-        return '平衡模式';
+        return tr('平衡模式');
       case CompressionPreset.maxCompression:
-        return '极限压缩';
+        return tr('极限压缩');
     }
   }
 
@@ -90,23 +91,23 @@ class CompressionConfig {
   String get description {
     switch (preset) {
       case CompressionPreset.highQuality:
-        return '推荐 • 保持高画质，适度压缩';
+        return tr('推荐 • 保持高画质，适度压缩');
       case CompressionPreset.balanced:
-        return '画质与文件大小平衡';
+        return tr('画质与文件大小平衡');
       case CompressionPreset.maxCompression:
-        return '适合分享 • 最大化压缩';
+        return tr('适合分享 • 最大化压缩');
     }
   }
 
   /// 格式化预估大小显示
   String get formattedEstimatedSize {
-    if (estimatedSize == null) return '计算中...';
+    if (estimatedSize == null) return tr('计算中...');
     return formatFileSize(estimatedSize!);
   }
 
   /// 格式化压缩比例显示
   String get formattedCompressionRatio {
-    if (estimatedCompressionRatio == null) return '计算中...';
+    if (estimatedCompressionRatio == null) return tr('计算中...');
     return '${(estimatedCompressionRatio! * 100).toStringAsFixed(0)}%';
   }
 }
@@ -144,7 +145,7 @@ enum VideoResolution {
   String get displayName {
     switch (this) {
       case VideoResolution.original:
-        return '保持原始';
+        return tr('保持原始');
       case VideoResolution.uhd4k:
         return '4K (3840×2160)';
       case VideoResolution.fullHd:

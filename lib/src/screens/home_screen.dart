@@ -7,6 +7,7 @@ import '../constants/app_theme.dart';
 import '../cubits/video_data_cubit.dart';
 import '../cubits/video_filter_cubit.dart';
 import '../cubits/video_selection_cubit.dart';
+import '../libs/localization.dart';
 import '../models/video_model.dart';
 import '../utils.dart';
 import '../widgets/video_thumbnail.dart';
@@ -53,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Builder(
         builder: (context) => Scaffold(
           appBar: AppBar(
-            title: const Text(AppConstants.appName),
+            title: Text(tr(AppConstants.appName)),
             actions: [
               // 排序按钮
               IconButton(
@@ -87,7 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   } else if (dataState is VideoDataError) {
                     return _buildErrorState(dataState.message);
                   } else {
-                    return const Center(child: Text('未知状态'));
+                    return Center(child: Text(tr('未知状态')));
                   }
                 },
               ),
@@ -138,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   const SizedBox(width: 8),
                   Text(
-                    '下一步 (${selectionState.length})',
+                    '${tr('下一步')} (${selectionState.length})',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -183,11 +184,11 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Icon(Remix.video_line, size: 64, color: AppTheme.prosperityLightGray),
           const SizedBox(height: 16),
-          const Text('暂无视频', style: AppTheme.titleMedium),
+          Text(tr('暂无视频'), style: AppTheme.titleMedium),
           const SizedBox(height: 8),
           ElevatedButton(
             onPressed: () => _videoDataCubit.refreshVideos(),
-            child: const Text('刷新'),
+            child: Text(tr('刷新')),
           ),
         ],
       ),
@@ -201,11 +202,11 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
           const SizedBox(height: 16),
-          Text('加载失败: $message', style: AppTheme.titleMedium),
+          Text('${tr('加载失败')}: $message', style: AppTheme.titleMedium),
           const SizedBox(height: 8),
           ElevatedButton(
             onPressed: () => _videoDataCubit.refreshVideos(),
-            child: const Text('重试'),
+            child: Text(tr('重试')),
           ),
         ],
       ),
@@ -227,14 +228,17 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 56,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               alignment: Alignment.centerLeft,
-              child: const Text(
-                '排序方式',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              child: Text(
+                tr('排序方式'),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             // 排序选项
             _SortOption(
-              title: '文件大小',
+              title: tr('文件大小'),
               sortKey: 'size',
               currentSort: currentState.sortBy,
               isDescending: currentState.sortDescending,
@@ -242,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   modalContext, filterCubit, sortKey, currentState),
             ),
             _SortOption(
-              title: '拍摄时间',
+              title: tr('拍摄时间'),
               sortKey: 'date',
               currentSort: currentState.sortBy,
               isDescending: currentState.sortDescending,
@@ -250,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   modalContext, filterCubit, sortKey, currentState),
             ),
             _SortOption(
-              title: '视频时长',
+              title: tr('视频时长'),
               sortKey: 'duration',
               currentSort: currentState.sortBy,
               isDescending: currentState.sortDescending,
@@ -284,15 +288,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          '筛选标签',
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w600),
+                        Text(
+                          tr('筛选标签'),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         if (filterState.selectedTags.isNotEmpty)
                           TextButton(
                             onPressed: () => filterCubit.clearAllTags(),
-                            child: const Text('清除全部'),
+                            child: Text(tr('清除全部')),
                           ),
                       ],
                     ),
@@ -354,8 +360,8 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('请先选择要压缩的视频'),
+          SnackBar(
+            content: Text(tr('请先选择要压缩的视频')),
           ),
         );
       }

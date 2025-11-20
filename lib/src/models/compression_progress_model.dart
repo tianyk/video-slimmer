@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../libs/localization.dart';
 import '../utils.dart';
 import 'video_model.dart';
 
@@ -147,21 +148,21 @@ class VideoCompressionInfo extends Equatable {
   String get statusText {
     switch (status) {
       case VideoCompressionStatus.waitingDownload:
-        return '等待下载';
+        return tr('等待下载');
       case VideoCompressionStatus.waiting:
-        return '等待压缩';
+        return tr('等待压缩');
       case VideoCompressionStatus.downloading:
-        return '下载中';
+        return tr('下载中');
       case VideoCompressionStatus.compressing:
-        return '压缩中';
+        return tr('压缩中');
       case VideoCompressionStatus.completed:
-        return '已完成';
+        return tr('已完成');
       case VideoCompressionStatus.saved:
-        return '已保存';
+        return tr('已保存');
       case VideoCompressionStatus.cancelled:
-        return '已取消';
+        return tr('已取消');
       case VideoCompressionStatus.error:
-        return '失败';
+        return tr('失败');
     }
   }
 
@@ -169,21 +170,21 @@ class VideoCompressionInfo extends Equatable {
   String get actionButtonText {
     switch (status) {
       case VideoCompressionStatus.waitingDownload:
-        return '取消排队';
+        return tr('取消排队');
       case VideoCompressionStatus.waiting:
-        return '取消排队';
+        return tr('取消排队');
       case VideoCompressionStatus.downloading:
-        return '取消下载';
+        return tr('取消下载');
       case VideoCompressionStatus.compressing:
-        return '取消压缩';
+        return tr('取消压缩');
       case VideoCompressionStatus.completed:
-        return '保存到相册';
+        return tr('保存到相册');
       case VideoCompressionStatus.saved:
-        return '已保存';
+        return tr('已保存');
       case VideoCompressionStatus.cancelled:
-        return '重新压缩';
+        return tr('重新压缩');
       case VideoCompressionStatus.error:
-        return '重试';
+        return tr('重试');
     }
   }
 
@@ -195,10 +196,9 @@ class VideoCompressionInfo extends Equatable {
     final seconds = estimatedTimeRemaining! % 60;
 
     if (minutes > 0) {
-      return '$minutes 分 $seconds 秒';
-    } else {
-      return '$seconds 秒';
+      return '$minutes ${tr('分')} $seconds ${tr('秒')}';
     }
+    return '$seconds ${tr('秒')}';
   }
 
   /// 格式化压缩后大小显示
