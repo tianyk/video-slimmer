@@ -14,14 +14,14 @@ import 'video_model.dart';
 ///      └── 无需下载 ────────────────────────────────────────┘
 ///                                                         │
 ///                                                         ▼
-///                                                    waiting ──▶ compressing ──▶ completed
-///                                                       │                 │
+///                                                    waiting ──▶ compressing ──▶ completed ──▶ saved
+///                                                       │                 │              （保存到相册）
 ///                                                       ├───────────────┘
 ///                                                       ├──▶ error (压缩失败，可重试回 waiting)
 ///                                                       └──▶ cancelled (用户取消，可回 waiting)
 /// ```
 ///
-/// 终态（不可逆）：completed, cancelled, error
+/// 终态（不可逆）：completed, saved, cancelled, error
 /// 可重试：error, cancelled -> waiting
 enum VideoCompressionStatus {
   /// 等待下载（初始状态，排队等待占用下载并发）
@@ -56,6 +56,13 @@ enum VideoCompressionStatus {
 
   /// 已完成（终态）✅
   completed,
+
+  /// 已保存到相册（终态）📁
+  ///
+  /// - 已成功将压缩后的视频写入系统相册
+  /// - 临时输出文件路径可以安全清理
+  /// - 不再显示「保存到相册」操作
+  saved,
 
   /// 已取消（终态）❌
   ///
@@ -128,7 +135,8 @@ class VideoCompressionInfo extends Equatable {
       progress: progress ?? this.progress,
       sessionId: sessionId ?? this.sessionId,
       errorMessage: errorMessage ?? this.errorMessage,
-      estimatedTimeRemaining: estimatedTimeRemaining ?? this.estimatedTimeRemaining,
+      estimatedTimeRemaining:
+          estimatedTimeRemaining ?? this.estimatedTimeRemaining,
       compressedSize: compressedSize ?? this.compressedSize,
       originalFilePath: originalFilePath ?? this.originalFilePath,
       outputPath: outputPath ?? this.outputPath,
@@ -148,6 +156,8 @@ class VideoCompressionInfo extends Equatable {
         return '压缩中';
       case VideoCompressionStatus.completed:
         return '已完成';
+      case VideoCompressionStatus.saved:
+        return '已保存';
       case VideoCompressionStatus.cancelled:
         return '已取消';
       case VideoCompressionStatus.error:
@@ -168,6 +178,8 @@ class VideoCompressionInfo extends Equatable {
         return '取消压缩';
       case VideoCompressionStatus.completed:
         return '保存到相册';
+      case VideoCompressionStatus.saved:
+        return '已保存';
       case VideoCompressionStatus.cancelled:
         return '重新压缩';
       case VideoCompressionStatus.error:
@@ -212,10 +224,16 @@ class VideoCompressionInfo extends Equatable {
 /// VideoCompressionStatus 扩展
 extension VideoCompressionStatusExtension on VideoCompressionStatus {
   /// 是否是终态（不会再改变）
-  bool get isFinal => this == VideoCompressionStatus.completed || this == VideoCompressionStatus.cancelled || this == VideoCompressionStatus.error;
+  bool get isFinal =>
+      this == VideoCompressionStatus.completed ||
+      this == VideoCompressionStatus.saved ||
+      this == VideoCompressionStatus.cancelled ||
+      this == VideoCompressionStatus.error;
 
   /// 是否是活跃状态（正在处理中）
-  bool get isActive => this == VideoCompressionStatus.downloading || this == VideoCompressionStatus.compressing;
+  bool get isActive =>
+      this == VideoCompressionStatus.downloading ||
+      this == VideoCompressionStatus.compressing;
 
   /// 优先级（用于排序，数值越大优先级越高）
   int get priority {
@@ -229,7 +247,9 @@ extension VideoCompressionStatusExtension on VideoCompressionStatus {
       case VideoCompressionStatus.waitingDownload:
         return 50;
       case VideoCompressionStatus.completed:
-        return 10;
+        return 20;
+      case VideoCompressionStatus.saved:
+        return 15;
       case VideoCompressionStatus.cancelled:
         return 5;
       case VideoCompressionStatus.error:

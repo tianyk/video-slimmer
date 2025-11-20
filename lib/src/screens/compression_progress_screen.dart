@@ -59,16 +59,11 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
       child: BlocBuilder<CompressionProgressCubit, CompressionProgressState>(
         builder: (context, state) {
           return PopScope(
-            // 没有活跃任务时允许直接返回，有活跃任务时阻止返回
+            // 有进行中的任务时拦截返回，弹出确认；否则允许直接返回上一页
             canPop: !state.hasActiveCompression,
             onPopInvokedWithResult: (bool didPop, Object? result) async {
-              // 如果返回被阻止（didPop = false），检查是否有活跃任务
-              if (!didPop) {
-                // 重新获取最新状态
-                final currentState = _progressCubit.state;
-                if (currentState.hasActiveCompression) {
-                  await _showExitConfirmation(context);
-                }
+              if (!didPop && state.hasActiveCompression) {
+                await _showExitConfirmation(context);
               }
             },
             child: Scaffold(
@@ -138,7 +133,21 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
       bottom: 32,
       child: BlocBuilder<CompressionProgressCubit, CompressionProgressState>(
         builder: (context, state) {
-          if (state.isAllProcessed && state.completedCount > 0) {
+          final bool hasCompleted = state.videos.any(
+            (video) => video.status == VideoCompressionStatus.completed,
+          );
+
+          // 全部视频都处于「已保存 / 已取消 / 失败」三种终态，表示本轮任务彻底结束
+          final bool allFinishedWithoutPendingSave = state.videos.isNotEmpty &&
+              state.videos.every(
+                (video) =>
+                    video.status == VideoCompressionStatus.saved ||
+                    video.status == VideoCompressionStatus.cancelled ||
+                    video.status == VideoCompressionStatus.error,
+              );
+
+          // ✅ 情况一：所有视频任务都结束，且没有待保存的视频 → 显示「完成」，返回首页
+          if (allFinishedWithoutPendingSave) {
             return Container(
               height: 56,
               decoration: BoxDecoration(
@@ -164,12 +173,12 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.check_circle),
-                    const SizedBox(width: 8),
+                  children: const [
+                    Icon(Icons.check_circle),
+                    SizedBox(width: 8),
                     Text(
-                      '完成 (已节省 ${state.formattedTotalSavings})',
-                      style: const TextStyle(
+                      '完成',
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -178,11 +187,80 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
                 ),
               ),
             );
+          } else if (hasCompleted) {
+            // ✅ 情况二：仍有任务未结束，但已经有压缩完成待保存的视频 → 显示「保存全部已压缩视频」
+            return Container(
+              height: 56,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ElevatedButton(
+                onPressed: () => _handleSaveAllCompletedVideos(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.prosperityGold,
+                  foregroundColor: AppTheme.prosperityBlack,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                ),
+                child: Text(
+                  '保存全部已压缩视频',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            );
+          } else {
+            // ❌ 情况三：既没有全部结束，也没有任何已压缩可保存的视频 → 不显示底部按钮
+            return const SizedBox.shrink();
           }
-          return const SizedBox.shrink();
         },
       ),
     );
+  }
+
+  /// 保存全部已压缩视频到相册
+  Future<void> _handleSaveAllCompletedVideos(BuildContext context) async {
+    final CompressionProgressState currentState = _progressCubit.state;
+    final List<String> targetIds = currentState.videos
+        .where((VideoCompressionInfo video) =>
+            video.status == VideoCompressionStatus.completed &&
+            video.outputPath != null)
+        .map((VideoCompressionInfo video) => video.video.id)
+        .toList();
+    if (targetIds.isEmpty) {
+      if (mounted) {
+        _showSnackBar('没有可保存的压缩视频');
+      }
+      return;
+    }
+    try {
+      await _progressCubit.saveVideosToPhotos(targetIds);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showErrorDialog(
+        title: '保存失败',
+        message: '无法保存压缩视频到相册，请检查相册权限和存储空间',
+        error: error.toString(),
+      );
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    _showSnackBar('已保存压缩视频并删除原视频');
   }
 
   /// 处理视频操作
@@ -213,7 +291,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
   /// 保存压缩视频到相册
   Future<void> _executeSaveToPhotos(VideoCompressionInfo videoInfo) async {
     try {
-      await _progressCubit.saveVideoToPhotos(videoInfo);
+      await _progressCubit.saveVideosToPhotos(<String>[videoInfo.video.id]);
     } catch (error) {
       if (!mounted) return;
       _showErrorDialog(
@@ -223,14 +301,10 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
       );
       return;
     }
-
-    try {
-      await _progressCubit.deleteOriginalVideo(videoInfo);
-      if (!mounted) return;
-      _showSnackBar('已保存压缩视频并删除原视频');
-    } catch (_) {
-      // ignore: empty_catches
+    if (!mounted) {
+      return;
     }
+    _showSnackBar('已保存压缩视频并删除原视频');
   }
 
   void _showSnackBar(String message) {
@@ -411,6 +485,9 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
 
   /// 显示退出确认对话框并处理退出逻辑
   Future<void> _showExitConfirmation(BuildContext context) async {
+    final CompressionProgressState currentState = _progressCubit.state;
+    final bool hasActive = currentState.hasActiveCompression;
+
     final shouldExit = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -420,7 +497,7 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
           style: TextStyle(color: AppTheme.prosperityGold),
         ),
         content: const Text(
-          '压缩任务正在进行中。\n退出将取消所有未完成的压缩。',
+          '当前压缩任务尚未完全结束或已有压缩结果。\n退出后将无法在此页面继续查看和管理本次任务。',
           style: TextStyle(color: AppTheme.prosperityLightGold),
         ),
         actions: [
@@ -444,7 +521,9 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
     );
 
     if (shouldExit == true && context.mounted) {
-      _progressCubit.cancelAllCompression();
+      if (hasActive) {
+        _progressCubit.cancelAllCompression();
+      }
       Navigator.of(context).pop();
     }
   }
@@ -600,7 +679,9 @@ class _VideoProgressItem extends StatelessWidget {
             Text(
               videoInfo.status == VideoCompressionStatus.compressing
                   ? '压缩进度'
-                  : '已完成',
+                  : (videoInfo.status == VideoCompressionStatus.saved
+                      ? '已保存'
+                      : '已完成'),
               style: const TextStyle(
                 fontSize: 14,
                 color: AppTheme.prosperityLightGold,
@@ -706,6 +787,8 @@ class _VideoProgressItem extends StatelessWidget {
         return AppTheme.prosperityGold;
       case VideoCompressionStatus.completed:
         return AppTheme.prosperityGold;
+      case VideoCompressionStatus.saved:
+        return AppTheme.prosperityGold;
       case VideoCompressionStatus.cancelled:
         return AppTheme.prosperityLightGray;
       case VideoCompressionStatus.error:
@@ -723,6 +806,8 @@ class _VideoProgressItem extends StatelessWidget {
         return AppTheme.prosperityGold.withValues(alpha: 0.1);
       case VideoCompressionStatus.completed:
         return AppTheme.prosperityGold.withValues(alpha: 0.2);
+      case VideoCompressionStatus.saved:
+        return AppTheme.prosperityGold.withValues(alpha: 0.1);
       case VideoCompressionStatus.cancelled:
       case VideoCompressionStatus.error:
         return AppTheme.prosperityGold.withValues(alpha: 0.2);
@@ -740,6 +825,7 @@ class _VideoProgressItem extends StatelessWidget {
       case VideoCompressionStatus.completed:
       case VideoCompressionStatus.cancelled:
       case VideoCompressionStatus.error:
+      case VideoCompressionStatus.saved:
         return AppTheme.prosperityGold;
     }
   }
@@ -757,6 +843,8 @@ class _VideoProgressItem extends StatelessWidget {
       case VideoCompressionStatus.cancelled:
       case VideoCompressionStatus.error:
         return () => onAction(VideoAction.retry);
+      case VideoCompressionStatus.saved:
+        return null;
     }
   }
 }

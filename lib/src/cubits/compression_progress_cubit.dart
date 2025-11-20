@@ -48,44 +48,9 @@ class CompressionProgressState extends Equatable {
     );
   }
 
-  /// 获取已完成的视频数量
-  int get completedCount =>
-      videos.where((v) => v.status == VideoCompressionStatus.completed).length;
-
-  /// 是否所有视频都已处理
-  bool get isAllProcessed {
-    return videos.every((video) =>
-        video.status == VideoCompressionStatus.completed ||
-        video.status == VideoCompressionStatus.cancelled ||
-        video.status == VideoCompressionStatus.error);
-  }
-
   /// 是否有正在进行的压缩
   bool get hasActiveCompression =>
       videos.any((video) => video.status == VideoCompressionStatus.compressing);
-
-  /// 计算总原始大小
-  int get totalOriginalSize =>
-      videos.fold(0, (sum, video) => sum + video.video.sizeBytes);
-
-  /// 计算总压缩后大小
-  int get totalCompressedSize => videos
-      .where((video) => video.compressedSize != null)
-      .fold(0, (sum, video) => sum + video.compressedSize!);
-
-  /// 格式化总节省空间
-  String get formattedTotalSavings {
-    final int savings = totalOriginalSize - totalCompressedSize;
-    if (savings <= 0) return '0 B';
-    if (savings < 1024) return '$savings B';
-    if (savings < 1024 * 1024) {
-      return '${(savings / 1024).toStringAsFixed(1)} KB';
-    }
-    if (savings < 1024 * 1024 * 1024) {
-      return '${(savings / 1024 / 1024).toStringAsFixed(1)} MB';
-    }
-    return '${(savings / 1024 / 1024 / 1024).toStringAsFixed(1)} GB';
-  }
 
   @override
   List<Object?> get props => [videos];
@@ -1060,93 +1025,145 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     emit(state.copyWith(videos: updatedVideos));
   }
 
-  /// 保存视频到相册
-  Future<void> saveVideoToPhotos(VideoCompressionInfo videoInfo) async {
-    if (videoInfo.outputPath == null) {
-      _logger.warning('无法保存视频：输出路径为空', {'videoId': videoInfo.video.id});
-      throw Exception('无法保存视频：输出路径为空');
+  /// 批量保存压缩后视频到系统相册，并在全部保存完成后批量删除对应的原始视频
+  ///
+  /// [videoIds] 为需要处理的视频 ID 列表（PHAsset localIdentifier）
+  ///
+  /// 行为说明：
+  /// - 仅会处理状态为 [VideoCompressionStatus.completed] 且有非空 [outputPath] 的视频
+  /// - 如果 [videoIds] 为空，或筛选后没有可保存的视频，会直接返回（不抛异常）
+  /// - 如果用户拒绝相册权限，将抛出异常，由上层负责展示提示
+  /// - 单个视频保存失败只记录日志，不影响其他视频的保存与后续删除逻辑
+  /// - 只有「已成功保存到相册」的视频，其对应原始资产才会被加入批量删除列表
+  Future<void> saveVideosToPhotos(List<String> videoIds) async {
+    if (videoIds.isEmpty) {
+      return;
+    }
+
+    // 只保留在当前 state 中，且压缩已完成并有输出文件路径的视频任务
+    final List<VideoCompressionInfo> targets = state.videos
+        .where((VideoCompressionInfo video) =>
+            videoIds.contains(video.video.id) &&
+            video.status == VideoCompressionStatus.completed &&
+            video.outputPath != null)
+        .toList();
+
+    if (targets.isEmpty) {
+      return;
+    }
+
+    // 请求相册权限（包含写入与删除权限）
+    final PermissionState permissionState =
+        await PhotoManager.requestPermissionExtend();
+    if (!permissionState.hasAccess) {
+      _logger.warning('用户拒绝相册权限', {'videoIds': videoIds});
+      throw Exception('需要相册权限才能保存视频');
+    }
+    final List<String> successfullySaved = <String>[];
+
+    for (final VideoCompressionInfo info in targets) {
+      if (info.outputPath == null) {
+        _logger.warning('无法保存视频：输出路径为空', {'videoId': info.video.id});
+        continue;
+      }
+
+      try {
+        // 为保存到相册的资源生成更友好的标题
+        String newTitle;
+        if (info.video.title.isNotEmpty && info.video.title != 'unknown') {
+          final String originalFilename = info.video.title;
+          final String nameWithoutExt = originalFilename.split('.').first;
+          newTitle = '${nameWithoutExt}_compressed';
+        } else {
+          newTitle = 'compressed_${DateTime.now().millisecondsSinceEpoch}';
+        }
+
+        final File file = File(info.outputPath!);
+        if (!await file.exists()) {
+          throw Exception('视频文件不存在: ${info.outputPath}');
+        }
+
+        // 将压缩后的视频写入系统相册
+        final AssetEntity assetEntity = await PhotoManager.editor.saveVideo(
+          file,
+          title: newTitle,
+        );
+
+        _logger.info('视频已保存到相册', {
+          'videoId': info.video.id,
+          'assetId': assetEntity.id,
+          'title': newTitle,
+        });
+
+        // 保存成功后，删除沙盒内的临时压缩文件以节省存储空间
+        try {
+          await file.delete();
+        } catch (_) {
+          // ignore: empty_catches
+        }
+
+        _markVideoAsSaved(info.video.id);
+        successfullySaved.add(info.video.id);
+      } catch (e, stackTrace) {
+        _logger.error(
+          '保存视频到相册失败',
+          error: e,
+          stackTrace: stackTrace,
+          data: {'videoId': info.video.id},
+        );
+      }
+    }
+
+    if (successfullySaved.isEmpty) {
+      return;
     }
 
     try {
-      // 1. 请求相册权限
-      final PermissionState ps = await PhotoManager.requestPermissionExtend();
-      if (!ps.hasAccess) {
-        _logger.warning('用户拒绝相册权限', {'videoId': videoInfo.video.id});
-        throw Exception('需要相册权限才能保存视频');
+      // 仅删除那些「已成功保存到相册」的视频对应的原始资产
+      final List<String> deletedIds =
+          await PhotoManager.editor.deleteWithIds(successfullySaved);
+      if (deletedIds.isEmpty) {
+        _logger.warning('系统未能删除任何原视频', {'videoIds': successfullySaved});
+      } else if (deletedIds.length != successfullySaved.length) {
+        // 记录部分删除的情况，方便问题排查
+        _logger.warning('部分原视频未能被系统删除', {
+          'requestedDeleteCount': successfullySaved.length,
+          'actuallyDeletedCount': deletedIds.length,
+        });
       }
-
-      // 2. 构建新文件名：原始文件名 + _compressed 后缀
-      String newTitle;
-      if (videoInfo.video.title.isNotEmpty &&
-          videoInfo.video.title != 'unknown') {
-        // 移除扩展名（如 .MOV、.mp4）
-        final originalFilename = videoInfo.video.title;
-        final nameWithoutExt = originalFilename.split('.').first;
-        // 添加 _compressed 后缀，如 IMG_0001_compressed
-        newTitle = '${nameWithoutExt}_compressed';
-      } else {
-        // 如果无法获取原始文件名，使用时间戳
-        newTitle = 'compressed_${DateTime.now().millisecondsSinceEpoch}';
-      }
-
-      // 3. 检查文件是否存在
-      final file = File(videoInfo.outputPath!);
-      if (!await file.exists()) {
-        throw Exception('视频文件不存在: ${videoInfo.outputPath}');
-      }
-
-      // 4. 使用 PhotoManager 保存视频到相册
-      final assetEntity = await PhotoManager.editor.saveVideo(
-        file,
-        title: newTitle,
-      );
-
-      _logger.info('视频已保存到相册', {
-        'videoId': videoInfo.video.id,
-        'assetId': assetEntity.id,
-        'title': newTitle,
-      });
     } catch (e, stackTrace) {
+      // ignore: 忽略用户拒绝删除的错误
       _logger.error(
-        '保存视频到相册失败',
+        '批量删除原视频时发生错误',
         error: e,
         stackTrace: stackTrace,
-        data: {'videoId': videoInfo.video.id},
       );
-      rethrow;
     }
   }
 
-  /// 删除原始视频（系统会将其移动到相册的“最近删除”中）
-  Future<void> deleteOriginalVideo(VideoCompressionInfo videoInfo) async {
-    try {
-      final PermissionState permissionState =
-          await PhotoManager.requestPermissionExtend();
-      if (!permissionState.hasAccess) {
-        _logger.warning('删除原视频失败：无相册权限', {
-          'videoId': videoInfo.video.id,
-        });
-        throw Exception('需要相册权限才能删除原视频');
+  /// 将视频标记为已保存，并清空输出路径
+  ///
+  /// 前置条件：压缩后的视频文件已成功写入系统相册。
+  /// 作用：
+  /// - 将状态更新为 [VideoCompressionStatus.saved]
+  /// - 将进度固定为 1.0，并将剩余时间设置为 0
+  /// - 将临时输出文件路径置为 null，后续不再依赖该临时文件
+  void _markVideoAsSaved(String videoId) {
+    final List<VideoCompressionInfo> updatedVideos =
+        state.videos.map((VideoCompressionInfo video) {
+      if (video.video.id == videoId) {
+        return video.copyWith(
+          status: VideoCompressionStatus.saved,
+          progress: 1.0,
+          estimatedTimeRemaining: 0,
+          errorMessage: null,
+          outputPath: null,
+        );
       }
+      return video;
+    }).toList();
 
-      _logger.info('开始删除原视频（移动到最近删除）', {
-        'videoId': videoInfo.video.id,
-      });
-
-      final List<String> deletedIds =
-          await PhotoManager.editor.deleteWithIds(<String>[videoInfo.video.id]);
-      if (deletedIds.isEmpty) {
-        throw Exception('系统未能删除原视频');
-      }
-    } catch (e, stackTrace) {
-      _logger.error(
-        '删除原视频时发生错误',
-        error: e,
-        stackTrace: stackTrace,
-        data: {'videoId': videoInfo.video.id},
-      );
-      rethrow;
-    }
+    emit(state.copyWith(videos: updatedVideos));
   }
 
   /// 获取日志级别字符串
