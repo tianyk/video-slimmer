@@ -56,15 +56,39 @@ class _HomeScreenState extends State<HomeScreen> {
           appBar: AppBar(
             title: Text(tr(AppConstants.appName)),
             actions: [
-              // 排序按钮
-              IconButton(
-                icon: const Icon(Icons.sort),
-                onPressed: () => _showSortDialog(context),
+              // 排序按钮 - 非默认排序时图标变金色
+              BlocBuilder<VideoFilterCubit, VideoFilterState>(
+                buildWhen: (previous, current) =>
+                    (previous.sortBy != current.sortBy) ||
+                    (previous.sortDescending != current.sortDescending),
+                builder: (context, filterState) {
+                  // 默认是按拍摄时间降序
+                  final isDefaultSort = filterState.sortBy == 'date' &&
+                      filterState.sortDescending;
+                  return IconButton(
+                    icon: Icon(
+                      Icons.sort,
+                      color: isDefaultSort ? null : AppTheme.prosperityGold,
+                    ),
+                    onPressed: () => _showSortDialog(context),
+                  );
+                },
               ),
-              // 筛选按钮
-              IconButton(
-                icon: const Icon(Icons.filter_list),
-                onPressed: () => _showFilterDialog(context),
+              // 筛选按钮 - 有激活筛选时图标变金色
+              BlocBuilder<VideoFilterCubit, VideoFilterState>(
+                buildWhen: (previous, current) =>
+                    previous.selectedTags.isNotEmpty !=
+                    current.selectedTags.isNotEmpty,
+                builder: (context, filterState) {
+                  final hasActiveFilter = filterState.selectedTags.isNotEmpty;
+                  return IconButton(
+                    icon: Icon(
+                      Icons.filter_list,
+                      color: hasActiveFilter ? AppTheme.prosperityGold : null,
+                    ),
+                    onPressed: () => _showFilterDialog(context),
+                  );
+                },
               ),
             ],
           ),
