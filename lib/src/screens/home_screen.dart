@@ -416,9 +416,8 @@ class _VideoItem extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
           ),
           child: InkWell(
-            onTap: () => context
-                .read<VideoSelectionCubit>()
-                .toggleSelection(video.id, video.sizeBytes.toDouble()),
+            onTap: () =>
+                context.read<VideoSelectionCubit>().toggleSelection(video.id),
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -508,7 +507,7 @@ class _VideoItem extends StatelessWidget {
                     value: isSelected,
                     onChanged: (value) => context
                         .read<VideoSelectionCubit>()
-                        .toggleSelection(video.id, video.sizeBytes.toDouble()),
+                        .toggleSelection(video.id),
                     activeColor: AppTheme.prosperityGold,
                     checkColor: Colors.black,
                   ),

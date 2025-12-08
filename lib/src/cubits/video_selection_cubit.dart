@@ -5,16 +5,13 @@ class VideoSelectionCubit extends Cubit<Set<String>> {
   VideoSelectionCubit() : super(const {});
 
   /// 切换视频选择状态
-  void toggleSelection(String videoId, double videoSize) {
+  void toggleSelection(String videoId) {
     final newState = Set<String>.from(state);
     if (newState.contains(videoId)) {
-      // 取消选择
       newState.remove(videoId);
     } else {
-      // 添加选择
       newState.add(videoId);
     }
-
     emit(newState);
   }
 
@@ -30,7 +27,8 @@ class VideoSelectionCubit extends Cubit<Set<String>> {
 
   /// 反选
   void invertSelection(Map<String, double> allVideoSizeMap) {
-    final newSelected = Set<String>.from(allVideoSizeMap.keys.where((id) => !state.contains(id)));
+    final newSelected = Set<String>.from(
+        allVideoSizeMap.keys.where((id) => !state.contains(id)));
 
     emit(newSelected);
   }

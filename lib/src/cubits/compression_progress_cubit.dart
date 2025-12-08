@@ -49,9 +49,10 @@ class CompressionProgressState extends Equatable {
     );
   }
 
-  /// 是否有正在进行的压缩
-  bool get hasActiveCompression =>
-      videos.any((video) => video.status == VideoCompressionStatus.compressing);
+  /// 是否有正在进行的任务（包括下载和压缩）
+  bool get hasActiveCompression => videos.any((video) =>
+      video.status == VideoCompressionStatus.compressing ||
+      video.status == VideoCompressionStatus.downloading);
 
   @override
   List<Object?> get props => [videos];
@@ -105,11 +106,31 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   bool _isRunning = false;
 
   @override
-  Future<void> close() {
+  Future<void> close() async {
     _isRunning = false;
     _videoIdsToCompress.clear();
     _videoIdsToDownload.clear();
     _progressSubscription?.cancel();
+
+    // 清理未保存的临时压缩文件
+    for (final video in state.videos) {
+      if (video.outputPath != null &&
+          video.status != VideoCompressionStatus.saved) {
+        try {
+          final file = File(video.outputPath!);
+          if (await file.exists()) {
+            await file.delete();
+            _logger.debug('已清理临时文件', {'path': video.outputPath});
+          }
+        } catch (e) {
+          _logger.warning('清理临时文件失败', {
+            'path': video.outputPath,
+            'error': e.toString(),
+          });
+        }
+      }
+    }
+
     return super.close();
   }
 

@@ -1,18 +1,44 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:video_slimmer/src/services/permission_service.dart';
 import 'src/constants/app_constants.dart';
 import 'src/constants/app_theme.dart';
 import 'src/libs/localization.dart';
+import 'src/libs/logger.dart';
 import 'src/screens/home_screen.dart';
 import 'src/services/localization_service.dart';
 import 'src/widgets/permission_denied_screen.dart';
 import 'src/widgets/error_screen.dart';
 
+final _logger = Logger.getLogger();
+
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  // 初始化国际化
-  await LocalizationService.instance.initialize();
-  runApp(const VideoSlimmerApp());
+  // 全局错误处理
+  await runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+
+    // 捕获 Flutter 框架错误
+    FlutterError.onError = (FlutterErrorDetails details) {
+      _logger.error(
+        'Flutter框架错误',
+        error: details.exception,
+        stackTrace: details.stack,
+      );
+    };
+
+    // 初始化国际化
+    await LocalizationService.instance.initialize();
+
+    runApp(const VideoSlimmerApp());
+  }, (error, stackTrace) {
+    // 捕获未处理的异步错误
+    _logger.error(
+      '未捕获的异步错误',
+      error: error,
+      stackTrace: stackTrace,
+    );
+  });
 }
 
 class VideoSlimmerApp extends StatelessWidget {
@@ -49,7 +75,7 @@ class HomeScreenWrapper extends StatelessWidget {
         }
 
         if (snapshot.hasError) {
-          print('snapshot.error: ${snapshot.error}');
+          _logger.error('权限请求失败', error: snapshot.error);
           return ErrorScreen(
             errorMessage: snapshot.error?.toString() ?? tr('未知错误'),
             brandGold: AppTheme.prosperityGold,
