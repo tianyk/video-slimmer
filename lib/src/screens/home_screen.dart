@@ -374,14 +374,19 @@ class _HomeScreenState extends State<HomeScreen> {
           .toList();
 
       if (selectedVideos.isNotEmpty) {
-        // 导航到压缩配置页面
-        Navigator.of(context).push(
+        // 导航到压缩配置页面，返回时刷新列表并清除选择
+        Navigator.of(context)
+            .push(
           MaterialPageRoute(
             builder: (context) => CompressionConfigScreen(
               selectedVideos: selectedVideos,
             ),
           ),
-        );
+        )
+            .then((_) {
+          _videoDataCubit.refreshVideos();
+          _videoSelectionCubit.clearSelection();
+        });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
