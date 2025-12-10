@@ -4,12 +4,16 @@ import 'package:remixicon/remixicon.dart';
 
 import '../constants/app_constants.dart';
 import '../constants/app_theme.dart';
+import '../cubits/purchase_cubit.dart';
 import '../cubits/video_data_cubit.dart';
 import '../cubits/video_filter_cubit.dart';
 import '../cubits/video_selection_cubit.dart';
 import '../libs/localization.dart';
+import '../models/purchase_state.dart';
 import '../models/video_model.dart';
 import '../utils.dart';
+import '../widgets/primary_action_button.dart';
+import '../widgets/pro_upgrade_sheet.dart';
 import '../widgets/video_thumbnail.dart';
 import 'compression_config_screen.dart';
 
@@ -135,48 +139,53 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildFloatingButtonContent() {
     return BlocBuilder<VideoSelectionCubit, Set<String>>(
       builder: (context, selectionState) {
-        if (selectionState.isNotEmpty) {
-          return Container(
-            height: 56,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: ElevatedButton(
-              onPressed: _onNextPressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.prosperityGold,
-                foregroundColor: AppTheme.prosperityBlack,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(width: 8),
-                  Text(
-                    '${tr('下一步')} (${selectionState.length})',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        } else {
+        if (selectionState.isEmpty) {
           return const SizedBox.shrink();
         }
+        final selectedCount = selectionState.length;
+        return BlocBuilder<PurchaseCubit, PurchaseState>(
+          builder: (context, purchaseState) {
+            final isPro = purchaseState.isPro;
+            final exceedsLimit =
+                selectedCount > AppConstants.maxFreeVideoSelection;
+            final showUpgrade = exceedsLimit && !isPro;
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(
+                    scale:
+                        Tween<double>(begin: 0.95, end: 1.0).animate(animation),
+                    child: child,
+                  ),
+                );
+              },
+              child: showUpgrade
+                  ? _buildUpgradeButton(context, selectedCount)
+                  : _buildNextButton(selectedCount),
+            );
+          },
+        );
       },
+    );
+  }
+
+  /// 显示 Pro 升级弹窗
+  void _showProUpgradeSheet(BuildContext context, int selectedCount) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalContext) => BlocProvider.value(
+        value: context.read<PurchaseCubit>(),
+        child: ProUpgradeSheet(
+          selectedCount: selectedCount,
+          onPurchaseSuccess: () {
+            Navigator.pop(modalContext);
+          },
+        ),
+      ),
     );
   }
 
@@ -234,6 +243,62 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// 构建升级按钮：渐变背景 + 金色边框 + 金色元素
+  Widget _buildUpgradeButton(BuildContext context, int selectedCount) {
+    const borderRadius = BorderRadius.all(Radius.circular(28));
+    return SizedBox(
+      key: const ValueKey('upgrade'),
+      width: double.infinity,
+      height: 56,
+      child: Material(
+        color: Colors.transparent,
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: borderRadius,
+            border: Border.all(color: AppTheme.prosperityGold, width: 1.5),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppTheme.prosperityGray, AppTheme.prosperityBlack],
+            ),
+          ),
+          child: InkWell(
+            onTap: () => _showProUpgradeSheet(context, selectedCount),
+            borderRadius: borderRadius,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Remix.vip_crown_2_fill,
+                  size: 20,
+                  color: AppTheme.prosperityGold,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  tr('解锁批量压缩'),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.prosperityGold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 构建下一步按钮：金色背景的主要操作按钮
+  Widget _buildNextButton(int selectedCount) {
+    return PrimaryActionButton(
+      key: const ValueKey('next'),
+      text: '${tr('下一步')} ($selectedCount)',
+      onPressed: _onNextPressed,
     );
   }
 

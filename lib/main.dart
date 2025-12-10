@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:video_slimmer/src/services/permission_service.dart';
 import 'src/constants/app_constants.dart';
 import 'src/constants/app_theme.dart';
+import 'src/cubits/purchase_cubit.dart';
 import 'src/libs/localization.dart';
 import 'src/libs/logger.dart';
 import 'src/screens/home_screen.dart';
@@ -46,12 +48,15 @@ class VideoSlimmerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: tr(AppConstants.appName),
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.dark,
-      home: const HomeScreenWrapper(),
+    return BlocProvider<PurchaseCubit>(
+      create: (_) => PurchaseCubit(),
+      child: MaterialApp(
+        title: tr(AppConstants.appName),
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ThemeMode.dark,
+        home: const HomeScreenWrapper(),
+      ),
     );
   }
 }

@@ -9,6 +9,7 @@ import '../models/compression_model.dart';
 import '../models/compression_progress_model.dart';
 import '../models/video_model.dart';
 import '../utils.dart';
+import '../widgets/primary_action_button.dart';
 import '../widgets/video_thumbnail.dart';
 
 final _logger = Logger.getLogger();
@@ -137,7 +138,6 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
           final bool hasCompleted = state.videos.any(
             (video) => video.status == VideoCompressionStatus.completed,
           );
-
           // 全部视频都处于「已保存 / 已取消 / 失败」三种终态，表示本轮任务彻底结束
           final bool allFinishedWithoutPendingSave = state.videos.isNotEmpty &&
               state.videos.every(
@@ -146,80 +146,19 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
                     video.status == VideoCompressionStatus.cancelled ||
                     video.status == VideoCompressionStatus.error,
               );
-
           // ✅ 情况一：所有视频任务都结束，且没有待保存的视频 → 显示「完成」，返回首页
           if (allFinishedWithoutPendingSave) {
-            return Container(
-              height: 56,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ElevatedButton(
-                onPressed: () =>
-                    Navigator.of(context).popUntil((route) => route.isFirst),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.prosperityGold,
-                  foregroundColor: AppTheme.prosperityBlack,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.check_circle),
-                    const SizedBox(width: 8),
-                    Text(
-                      tr('完成'),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            return PrimaryActionButton(
+              text: tr('完成'),
+              icon: Icons.check_circle,
+              onPressed: () =>
+                  Navigator.of(context).popUntil((route) => route.isFirst),
             );
           } else if (hasCompleted) {
             // ✅ 情况二：仍有任务未结束，但已经有压缩完成待保存的视频 → 显示「保存全部已压缩视频」
-            return Container(
-              height: 56,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ElevatedButton(
-                onPressed: () => _handleSaveAllCompletedVideos(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.prosperityGold,
-                  foregroundColor: AppTheme.prosperityBlack,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                ),
-                child: Text(
-                  tr('保存全部已压缩视频'),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+            return PrimaryActionButton(
+              text: tr('保存全部已压缩视频'),
+              onPressed: () => _handleSaveAllCompletedVideos(context),
             );
           } else {
             // ❌ 情况三：既没有全部结束，也没有任何已压缩可保存的视频 → 不显示底部按钮

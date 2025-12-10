@@ -6,6 +6,7 @@ import '../cubits/compression_cubit.dart';
 import '../libs/localization.dart';
 import '../models/compression_model.dart';
 import '../models/video_model.dart';
+import '../widgets/primary_action_button.dart';
 import 'compression_progress_screen.dart';
 
 class CompressionConfigScreen extends StatefulWidget {
@@ -93,58 +94,10 @@ class _CompressionConfigScreenState extends State<CompressionConfigScreen> {
   Widget _buildFloatingButtonContent() {
     return BlocBuilder<CompressionCubit, CompressionState>(
       builder: (context, state) {
-        return Container(
-          height: 56,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ElevatedButton(
-            onPressed: state.canStartCompression ? _onStartCompression : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: state.canStartCompression
-                  ? AppTheme.prosperityGold
-                  : AppTheme.prosperityLightGray,
-              foregroundColor: state.canStartCompression
-                  ? AppTheme.prosperityBlack
-                  : AppTheme.prosperityLightGold.withValues(alpha: 0.5),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (state.isCalculatingEstimate)
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                          AppTheme.prosperityBlack),
-                    ),
-                  )
-                else
-                  const SizedBox.shrink(),
-                const SizedBox(width: 8),
-                Text(
-                  state.isCalculatingEstimate ? tr('计算中...') : tr('开始压缩'),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        return PrimaryActionButton(
+          text: state.isCalculatingEstimate ? tr('计算中...') : tr('开始压缩'),
+          onPressed: state.canStartCompression ? _onStartCompression : null,
+          isLoading: state.isCalculatingEstimate,
         );
       },
     );
