@@ -37,6 +37,7 @@
   ],
   "settings" : {
     "_applicationInternalID" : "1234567890",
+    "_billingIssuesEnabled" : false,
     "_developerTeamID" : "XXXXXXXXXX",
     "_failTransactionsEnabled" : false,
     "_locale" : "zh_CN",

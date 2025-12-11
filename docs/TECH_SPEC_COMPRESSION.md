@@ -1,8 +1,9 @@
 # 视频压缩技术方案
 
-| 文档版本 | V1.0 |
+| 文档版本 | V1.1 |
 |---------|------|
 | 创建日期 | 2025-12-11 |
+| 更新日期 | 2025-12-11 |
 | 文档状态 | 已实现 |
 
 ## 1. 概述
@@ -108,30 +109,12 @@ enum VideoCompressionStatus {
 
 ### 4.1 初始化阶段
 
-```dart
-Future<void> initializeTask({
-  required List<VideoModel> videos,
-  required CompressionConfig config,
-}) async {
-  // 1. 保存压缩配置
-  _compressionConfig = config;
-  
-  // 2. 并行检查每个视频的本地可用性
-  final videoInfos = await Future.wait(videos.map((video) async {
-    final isLocallyAvailable = await isVideoLocallyAvailable(video.id);
-    return VideoCompressionInfo(
-      video: video,
-      status: isLocallyAvailable
-          ? VideoCompressionStatus.waiting
-          : VideoCompressionStatus.waitingDownload,
-    );
-  }));
-  
-  // 3. 将视频 ID 添加到对应队列
-  _videoIdsToCompress.addAll(/* waiting 状态的视频 */);
-  _videoIdsToDownload.addAll(/* waitingDownload 状态的视频 */);
-}
-```
+> 方法：`initializeTask(videos, config)`
+
+1. 保存压缩配置
+2. 并行检查每个视频的本地可用性（`isVideoLocallyAvailable`）
+3. 根据可用性设置初始状态：本地可用 → `waiting`，需下载 → `waitingDownload`
+4. 将视频 ID 添加到对应队列
 
 ### 4.2 双队列调度系统
 
@@ -153,54 +136,25 @@ Future<void> initializeTask({
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**调度下载任务：**
+**调度逻辑：**
+
+两个循环结构相同，核心模式：
 
 ```dart
-Future<void> _scheduleDownloads() async {
-  while (!isClosed) {
-    String? videoId;
-    try {
-      videoId = await _videoIdsToDownload.take(timeout: Duration(seconds: 1));
-    } on TimeoutException {
-      continue;  // 超时，继续检查 while 条件
-    } on StateError {
-      continue;  // 队列被清空，继续检查 while 条件
-    }
-    
-    final videoInfo = state.getVideoCompressionInfoByVideoId(videoId);
-    if (videoInfo.status == VideoCompressionStatus.waitingDownload) {
-      _updateVideoStatus(videoId, VideoCompressionStatus.downloading);
-      await _ensureVideoFilePath(videoId);  // 触发 iCloud 下载
-      _updateVideoStatus(videoId, VideoCompressionStatus.waiting);
-      _videoIdsToCompress.add(videoId);  // 添加到压缩队列
-    }
-  }
+while (!isClosed) {
+  try {
+    videoId = await queue.take(timeout: Duration(seconds: 1));
+  } on TimeoutException { continue; }  // 超时，检查 isClosed
+  on StateError { continue; }          // 队列被清空
+  
+  // 执行下载/压缩任务...
 }
 ```
 
-**调度压缩任务：**
-
-```dart
-Future<void> _scheduleCompression() async {
-  while (!isClosed) {
-    String? videoId;
-    try {
-      videoId = await _videoIdsToCompress.take(timeout: Duration(seconds: 1));
-    } on TimeoutException {
-      continue;
-    } on StateError {
-      continue;
-    }
-    
-    final videoInfo = state.getVideoCompressionInfoByVideoId(videoId);
-    if (videoInfo.status == VideoCompressionStatus.waiting) {
-      _updateVideoStatus(videoId, VideoCompressionStatus.compressing);
-      final outputPath = await _runFfmpegForVideo(videoInfo);
-      _updateVideoStatus(videoId, VideoCompressionStatus.completed, outputPath: outputPath);
-    }
-  }
-}
-```
+| 循环 | 队列 | 任务完成后 |
+|:---|:---|:---|
+| `_scheduleDownloads` | `_videoIdsToDownload` | 添加到 `_videoIdsToCompress` |
+| `_scheduleCompression` | `_videoIdsToCompress` | 更新状态为 `completed` |
 
 ### 4.3 循环退出机制
 
@@ -231,53 +185,21 @@ Future<void> _scheduleCompression() async {
 
 ## 5. AsyncQueue 设计
 
-### 5.1 核心实现
+> 文件路径：`lib/src/libs/async_queue.dart`
 
-```dart
-class AsyncQueue<T> {
-  final Queue<T> _queue = Queue<T>();
-  final Queue<Completer<T>> _waiters = Queue<Completer<T>>();
+### 5.1 核心方法
 
-  void add(T item) {
-    if (_waiters.isNotEmpty) {
-      _waiters.removeFirst().complete(item);
-    } else {
-      _queue.add(item);
-    }
-  }
-
-  Future<T> take({Duration? timeout}) {
-    if (_queue.isNotEmpty) {
-      return Future.value(_queue.removeFirst());
-    } else {
-      final completer = Completer<T>();
-      _waiters.add(completer);
-      
-      if (timeout != null) {
-        return completer.future.timeout(timeout, onTimeout: () {
-          _waiters.remove(completer);
-          throw TimeoutException('Queue take timed out', timeout);
-        });
-      }
-      
-      return completer.future;
-    }
-  }
-
-  void clear() {
-    _queue.clear();
-    while (_waiters.isNotEmpty) {
-      _waiters.removeFirst().completeError(StateError('Queue cleared'));
-    }
-  }
-}
-```
+| 方法 | 说明 |
+|:---|:---|
+| `add(item)` | 添加元素，如有等待者则直接交付 |
+| `take({timeout})` | 阻塞获取元素，支持超时 |
+| `clear()` | 清空队列，所有等待的 `take()` 抛出 `StateError` |
 
 ### 5.2 特性
 
 - **阻塞式 take()**：队列为空时阻塞等待，不占用 CPU
-- **可选超时**：支持定期检查外部条件
-- **清空触发异常**：`clear()` 会让所有等待的 `take()` 抛出 `StateError`
+- **可选超时**：支持定期检查外部条件（如 `isClosed`）
+- **清空触发异常**：`clear()` 会让所有等待的 `take()` 抛出 `StateError`，用于退出循环
 
 ---
 
@@ -292,84 +214,31 @@ class AsyncQueue<T> {
 | HEVC/H.265 | `hevc_videotoolbox` | `hvc1` |
 | H.264 | `h264_videotoolbox` | `avc1` |
 
-### 6.2 FFmpeg 命令构建
+### 6.2 FFmpeg 命令结构
 
-```dart
-Future<String> _buildFfmpegCommand({
-  required String inputPath,
-  required String outputPath,
-  required CompressionConfig config,
-}) async {
-  final args = <String>[];
-  
-  // 全局参数
-  args.addAll(['-y', '-hide_banner']);
-  
-  // 硬件加速
-  args.addAll(['-hwaccel', 'videotoolbox']);
-  
-  // 输入
-  args.addAll(['-i', inputPath]);
-  
-  // 流映射（视频、音频、data streams）
-  args.addAll(['-map', '0:v:0', '-map', '0:a:0?', '-map', '0:d?']);
-  
-  // 元数据保留（GPS、拍摄时间等）
-  args.addAll(['-map_metadata', '0', '-movflags', 'faststart']);
-  
-  // 视频编码
-  args.addAll(['-c:v', videoCodec, '-b:v', '${bitrate}k', '-quality', 'high']);
-  
-  // 音频编码
-  args.addAll(['-c:a', 'aac', '-b:a', '${audioKbps}k', '-ac', '2']);
-  
-  // 输出格式
-  args.addAll(['-tag:v', videoTag, '-f', 'mov', outputPath]);
-  
-  return args.join(' ');
-}
-```
+| 参数类别 | 示例 | 说明 |
+|:---|:---|:---|
+| 全局参数 | `-y -hide_banner` | 覆盖输出、隐藏版本信息 |
+| 硬件加速 | `-hwaccel videotoolbox` | iOS VideoToolbox 硬件加速 |
+| 流映射 | `-map 0:v:0 -map 0:a:0? -map 0:d?` | 视频、音频、data streams |
+| 元数据 | `-map_metadata 0 -movflags faststart` | 保留 GPS、拍摄时间等 |
+| 视频编码 | `-c:v hevc_videotoolbox -b:v 2000k` | 编码器 + 目标码率 |
+| 音频编码 | `-c:a aac -b:a 128k -ac 2` | AAC 编码、立体声 |
+| 输出格式 | `-tag:v hvc1 -f mov` | 视频标签 + MOV 容器 |
 
 ### 6.3 进度计算
 
-```dart
-// FFmpeg 统计回调
-(Statistics statistics) {
-  final int timeMs = statistics.getTime();        // 已处理时长（毫秒）
-  final double totalMs = videoInfo.video.duration * 1000.0;
-  final double progress = (timeMs / totalMs).clamp(0.0, 1.0);
-  final double speed = statistics.getSpeed();     // 处理速度倍率
-  
-  // 预估剩余时间 = 剩余视频时长 / 处理速度
-  final Duration remaining = speed > 0
-      ? Duration(milliseconds: ((totalMs - timeMs) / speed).round())
-      : Duration.zero;
-      
-  _updateVideoProgress(videoId, progress, remaining.inSeconds);
-}
-```
+| 指标 | 计算方式 |
+|:---|:---|
+| **进度** | `已处理时长 / 视频总时长` |
+| **剩余时间** | `剩余视频时长 / 处理速度倍率` |
 
 ### 6.4 进度更新优化
 
-使用整数百分比比对，避免频繁的 UI 更新：
+使用**整数百分比比对**，避免频繁的 UI 更新：
 
-```dart
-void _updateVideoProgress(String videoId, double progress, int remainingSeconds) {
-  final currentVideo = state.getVideoCompressionInfoByVideoId(videoId);
-  
-  // 将进度转为整数百分比比较
-  final currentPercent = (currentVideo.progress * 100).toInt();
-  final newPercent = (progress * 100).toInt();
-  
-  // 只有进度百分比或剩余时间变化时才更新
-  if (currentPercent == newPercent && 
-      currentVideo.estimatedTimeRemaining == remainingSeconds) {
-    return;
-  }
-  
-  // ... 执行更新
-}
-```
+- 将 `progress` 转为 `0-100` 整数
+- 只有百分比或剩余时间变化时才触发 `emit()`
 
 ---
 
@@ -385,35 +254,17 @@ void _updateVideoProgress(String videoId, double progress, int remainingSeconds)
 
 ### 7.2 iCloud 下载实现
 
-```swift
-private func getVideoFilePath(call: FlutterMethodCall, result: @escaping FlutterResult) {
-  let options = PHVideoRequestOptions()
-  options.version = .original
-  options.deliveryMode = .highQualityFormat
-  options.isNetworkAccessAllowed = true  // 允许从 iCloud 下载
-  
-  // 进度回调
-  options.progressHandler = { progress, error, stop, info in
-    self.progressHandler.sendProgress(videoId: assetId, progress: progress)
-  }
-  
-  // 请求视频
-  let requestId = PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { ... }
-  
-  // 保存 requestId 用于取消
-  activeDownloadRequests[assetId] = requestId
-}
+> 文件路径：`ios/Runner/AppDelegate.swift`
 
-private func cancelDownload(call: FlutterMethodCall, result: @escaping FlutterResult) {
-  if let requestId = activeDownloadRequests[assetId] {
-    PHImageManager.default().cancelImageRequest(requestId)
-    activeDownloadRequests.removeValue(forKey: assetId)
-    result(true)
-  } else {
-    result(false)
-  }
-}
-```
+**关键配置：**
+
+| 配置项 | 值 | 说明 |
+|:---|:---|:---|
+| `version` | `.original` | 获取原始视频 |
+| `deliveryMode` | `.highQualityFormat` | 高质量格式 |
+| `isNetworkAccessAllowed` | `true` | 允许从 iCloud 下载 |
+
+**取消机制：** 保存 `requestId` 到 `activeDownloadRequests` 字典，取消时调用 `PHImageManager.cancelImageRequest(requestId)`
 
 ---
 
@@ -421,78 +272,32 @@ private func cancelDownload(call: FlutterMethodCall, result: @escaping FlutterRe
 
 ### 8.1 取消单个视频
 
-```dart
-Future<void> cancelVideo(String videoId) async {
-  final video = state.getVideoCompressionInfoByVideoId(videoId);
+> 方法：`cancelVideo(videoId)`
 
-  switch (video.status) {
-    case VideoCompressionStatus.waitingDownload:
-      _videoIdsToDownload.remove(videoId);
-      break;
-    case VideoCompressionStatus.downloading:
-      await _cancelDownload(videoId);  // 调用原生取消
-      break;
-    case VideoCompressionStatus.compressing:
-      FFmpegKit.cancel(video.sessionId);  // 按 sessionId 取消
-      break;
-    case VideoCompressionStatus.waiting:
-      _videoIdsToCompress.remove(videoId);
-      break;
-  }
+| 当前状态 | 取消操作 |
+|:---|:---|
+| `waitingDownload` | 从下载队列移除 |
+| `downloading` | 调用原生 `cancelDownload` |
+| `waiting` | 从压缩队列移除 |
+| `compressing` | 调用 `FFmpegKit.cancel(sessionId)` |
 
-  _updateVideoStatus(videoId, VideoCompressionStatus.cancelled);
-}
-```
+最后更新状态为 `cancelled`。
 
 ### 8.2 取消所有任务
 
-```dart
-void cancelAllCompression() {
-  // 只取消正在运行的 FFmpeg 会话（按 sessionId）
-  for (final video in state.videos) {
-    if (video.sessionId != null &&
-        video.status == VideoCompressionStatus.compressing) {
-      FFmpegKit.cancel(video.sessionId);
-    }
-  }
+> 方法：`cancelAllCompression()`
 
-  // 清空队列（循环会捕获 StateError 并 continue）
-  _videoIdsToCompress.clear();
-  _videoIdsToDownload.clear();
-
-  // 更新所有活跃状态为已取消
-  final updatedVideos = state.videos.map((video) {
-    if (video.status.isActive || video.status == VideoCompressionStatus.waiting) {
-      return video.copyWith(status: VideoCompressionStatus.cancelled);
-    }
-    return video;
-  }).toList();
-
-  emit(state.copyWith(videos: updatedVideos));
-}
-```
+1. 遍历所有 `compressing` 状态的视频，按 `sessionId` 取消 FFmpeg
+2. 清空两个队列（触发循环捕获 `StateError` 并退出）
+3. 将所有活跃状态更新为 `cancelled`
 
 ### 8.3 重试视频
 
-```dart
-Future<void> retryVideo(String videoId) async {
-  final isLocallyAvailable = await isVideoLocallyAvailable(videoId);
-  
-  // 重置状态
-  final newStatus = isLocallyAvailable
-      ? VideoCompressionStatus.waiting
-      : VideoCompressionStatus.waitingDownload;
-  
-  _updateVideoStatus(videoId, newStatus, progress: 0.0);
-  
-  // 添加到对应队列
-  if (isLocallyAvailable) {
-    _videoIdsToCompress.add(videoId);
-  } else {
-    _videoIdsToDownload.add(videoId);
-  }
-}
-```
+> 方法：`retryVideo(videoId)`
+
+1. 检查视频本地可用性
+2. 重置状态和进度（`progress: 0.0`）
+3. 添加到对应队列（下载或压缩）
 
 ---
 
@@ -500,52 +305,28 @@ Future<void> retryVideo(String videoId) async {
 
 ### 9.1 Cubit 关闭
 
-```dart
-@override
-Future<void> close() async {
-  _progressSubscription?.cancel();
+> 方法：`close()`
 
-  // 清理未保存的临时压缩文件
-  for (final video in state.videos) {
-    if (video.outputPath != null &&
-        video.status != VideoCompressionStatus.saved) {
-      try {
-        final file = File(video.outputPath!);
-        if (await file.exists()) {
-          await file.delete();
-        }
-      } catch (_) {}
-    }
-  }
-
-  // 先调用 super.close()，设置 isClosed = true
-  await super.close();
-
-  // 再清空队列，触发循环退出
-  _videoIdsToCompress.clear();
-  _videoIdsToDownload.clear();
-}
-```
+| 步骤 | 操作 | 说明 |
+|:---|:---|:---|
+| 1 | 取消进度订阅 | `_progressSubscription?.cancel()` |
+| 2 | 清理临时文件 | 删除未保存的压缩输出文件 |
+| 3 | `super.close()` | 设置 `isClosed = true` |
+| 4 | 清空队列 | 触发 `StateError`，循环退出 |
 
 ### 9.2 循环退出流程
 
 ```
-Widget.dispose() 调用 cubit.close()
-         │
-         ▼
-┌────────────────────────────────────────┐
-│  close() 方法                          │
-│  1. 清理临时文件                        │
-│  2. await super.close()  ──▶ isClosed = true
-│  3. clear() 队列         ──▶ StateError
-└────────────────────────────────────────┘
-         │
-         ▼
-┌────────────────────────────────────────┐
-│  while (!isClosed)                     │
-│  条件为 false，循环退出 ✅              │
-│  Cubit 可被 GC 回收                    │
-└────────────────────────────────────────┘
+Widget.dispose() → cubit.close()
+    │
+    ▼
+close(): super.close() → isClosed = true
+    │
+    ▼
+clear() 队列 → StateError
+    │
+    ▼
+while(!isClosed) 条件为 false → 循环退出 ✅
 ```
 
 ---

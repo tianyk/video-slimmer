@@ -72,7 +72,7 @@ class AppConstants {
   static const int maxFreeVideoSelection = 5;
   
   /// IAP 产品ID（需与 App Store Connect 配置一致）
-  static const String proProductId = 'com.yourcompany.videoslimmer.pro';
+  static const String proProductId = 'cc.kekek.videoslimmer.pro';
   
   /// 本地存储 Key
   static const String purchaseStatusKey = 'is_pro_purchased';
@@ -81,50 +81,14 @@ class AppConstants {
 
 ### 3.2 购买状态模型
 
-```dart
-// lib/src/models/purchase_state.dart
+> 文件路径：`lib/src/models/purchase_state.dart`
 
-import 'package:equatable/equatable.dart';
-
-/// 购买状态
-class PurchaseState extends Equatable {
-  /// 是否为Pro用户
-  final bool isPro;
-  
-  /// 是否正在加载（查询商品/处理购买中）
-  final bool isLoading;
-  
-  /// 商品价格显示文本（如 "¥18.00"）
-  final String? priceString;
-  
-  /// 错误信息
-  final String? errorMessage;
-
-  const PurchaseState({
-    this.isPro = false,
-    this.isLoading = false,
-    this.priceString,
-    this.errorMessage,
-  });
-
-  PurchaseState copyWith({
-    bool? isPro,
-    bool? isLoading,
-    String? priceString,
-    String? errorMessage,
-  }) {
-    return PurchaseState(
-      isPro: isPro ?? this.isPro,
-      isLoading: isLoading ?? this.isLoading,
-      priceString: priceString ?? this.priceString,
-      errorMessage: errorMessage,
-    );
-  }
-
-  @override
-  List<Object?> get props => [isPro, isLoading, priceString, errorMessage];
-}
-```
+| 字段 | 类型 | 说明 |
+|:---|:---|:---|
+| `isPro` | `bool` | 是否为 Pro 用户 |
+| `isLoading` | `bool` | 是否正在加载（查询商品/处理购买中） |
+| `priceString` | `String?` | 商品价格显示文本（如 "¥18.00"） |
+| `errorMessage` | `String?` | 错误信息 |
 
 ---
 
@@ -132,216 +96,50 @@ class PurchaseState extends Equatable {
 
 ### 4.1 购买服务
 
+> 文件路径：`lib/src/services/purchase_service.dart`
+
+采用单例模式封装 `InAppPurchase` 实例，提供以下核心方法：
+
+| 方法 | 说明 |
+|:---|:---|
+| `initialize()` | 初始化 IAP，监听购买流，检查本地缓存状态 |
+| `queryProductDetails()` | 查询商品信息，返回价格等详情 |
+| `purchasePro()` | 发起非消耗型商品购买 |
+| `restorePurchases()` | 恢复购买记录 |
+| `isPro()` | 获取当前购买状态 |
+
+**核心逻辑 - 购买状态处理：**
+
 ```dart
-// lib/src/services/purchase_service.dart
-
-import 'dart:async';
-import 'dart:io';
-import 'package:in_app_purchase/in_app_purchase.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../constants/app_constants.dart';
-
-class PurchaseService {
-  static final PurchaseService _instance = PurchaseService._internal();
-  factory PurchaseService() => _instance;
-  PurchaseService._internal();
-
-  final InAppPurchase _iap = InAppPurchase.instance;
-  StreamSubscription<List<PurchaseDetails>>? _subscription;
-  
-  /// 购买状态变化回调
-  Function(bool isPro)? onPurchaseStatusChanged;
-  
-  /// 错误回调
-  Function(String error)? onPurchaseError;
-
-  /// 初始化 IAP
-  Future<void> initialize() async {
-    final bool available = await _iap.isAvailable();
-    if (!available) {
-      onPurchaseError?.call('应用内购买不可用');
-      return;
-    }
-
-    // 监听购买流
-    _subscription = _iap.purchaseStream.listen(
-      _handlePurchaseUpdates,
-      onError: (error) => onPurchaseError?.call(error.toString()),
-    );
-
-    // 检查本地缓存的购买状态
-    await _checkLocalPurchaseStatus();
-  }
-
-  /// 释放资源
-  void dispose() {
-    _subscription?.cancel();
-  }
-
-  /// 查询商品信息
-  Future<ProductDetails?> queryProductDetails() async {
-    final ProductDetailsResponse response = await _iap.queryProductDetails(
-      {AppConstants.proProductId},
-    );
-    
-    if (response.error != null) {
-      onPurchaseError?.call(response.error!.message);
-      return null;
-    }
-    
-    if (response.productDetails.isEmpty) {
-      onPurchaseError?.call('未找到商品信息');
-      return null;
-    }
-    
-    return response.productDetails.first;
-  }
-
-  /// 发起购买
-  Future<void> purchasePro() async {
-    final product = await queryProductDetails();
-    if (product == null) return;
-
-    final PurchaseParam purchaseParam = PurchaseParam(
-      productDetails: product,
-    );
-    
-    // 非消耗型商品
-    await _iap.buyNonConsumable(purchaseParam: purchaseParam);
-  }
-
-  /// 恢复购买
-  Future<void> restorePurchases() async {
-    await _iap.restorePurchases();
-  }
-
-  /// 处理购买更新
-  Future<void> _handlePurchaseUpdates(List<PurchaseDetails> purchases) async {
-    for (final purchase in purchases) {
-      if (purchase.productID != AppConstants.proProductId) continue;
-
-      switch (purchase.status) {
-        case PurchaseStatus.pending:
-          // 购买处理中
-          break;
-          
-        case PurchaseStatus.purchased:
-        case PurchaseStatus.restored:
-          // 购买成功或恢复成功
-          await _verifyAndDeliver(purchase);
-          break;
-          
-        case PurchaseStatus.error:
-          onPurchaseError?.call(purchase.error?.message ?? '购买失败');
-          break;
-          
-        case PurchaseStatus.canceled:
-          // 用户取消，不做处理
-          break;
-      }
-
-      // 完成购买流程（重要：必须调用）
-      if (purchase.pendingCompletePurchase) {
-        await _iap.completePurchase(purchase);
-      }
-    }
-  }
-
-  /// 验证并交付商品
-  Future<void> _verifyAndDeliver(PurchaseDetails purchase) async {
-    // TODO: 生产环境应进行服务端收据验证
-    // 本地简单验证：检查购买状态
-    if (purchase.status == PurchaseStatus.purchased ||
-        purchase.status == PurchaseStatus.restored) {
-      await _savePurchaseStatus(true);
-      onPurchaseStatusChanged?.call(true);
-    }
-  }
-
-  /// 检查本地购买状态缓存
-  Future<void> _checkLocalPurchaseStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isPro = prefs.getBool(AppConstants.purchaseStatusKey) ?? false;
-    onPurchaseStatusChanged?.call(isPro);
-  }
-
-  /// 保存购买状态到本地
-  Future<void> _savePurchaseStatus(bool isPro) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(AppConstants.purchaseStatusKey, isPro);
-  }
-
-  /// 获取当前购买状态（同步）
-  Future<bool> isPro() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(AppConstants.purchaseStatusKey) ?? false;
-  }
+switch (purchase.status) {
+  case PurchaseStatus.purchased:
+  case PurchaseStatus.restored:
+    await _savePurchaseStatus(true);  // 保存到本地
+    onPurchaseStatusChanged?.call(true);
+    break;
+  case PurchaseStatus.error:
+    onPurchaseError?.call(purchase.error?.message ?? '购买失败');
+    break;
+  case PurchaseStatus.canceled:
+    break;  // 用户取消，不做处理
+}
+// ⚠️ 重要：必须调用，否则会重复推送购买
+if (purchase.pendingCompletePurchase) {
+  await _iap.completePurchase(purchase);
 }
 ```
 
 ### 4.2 状态管理
 
-```dart
-// lib/src/cubits/purchase_cubit.dart
+> 文件路径：`lib/src/cubits/purchase_cubit.dart`
 
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../models/purchase_state.dart';
-import '../services/purchase_service.dart';
+| 方法 | 说明 |
+|:---|:---|
+| `purchasePro()` | 设置 loading 状态，调用购买服务 |
+| `restorePurchases()` | 设置 loading 状态，调用恢复购买 |
+| `clearError()` | 清除错误信息 |
 
-class PurchaseCubit extends Cubit<PurchaseState> {
-  final PurchaseService _purchaseService;
-
-  PurchaseCubit({PurchaseService? purchaseService})
-      : _purchaseService = purchaseService ?? PurchaseService(),
-        super(const PurchaseState()) {
-    _initialize();
-  }
-
-  Future<void> _initialize() async {
-    _purchaseService.onPurchaseStatusChanged = (isPro) {
-      emit(state.copyWith(isPro: isPro, isLoading: false));
-    };
-    
-    _purchaseService.onPurchaseError = (error) {
-      emit(state.copyWith(errorMessage: error, isLoading: false));
-    };
-
-    await _purchaseService.initialize();
-    await _loadProductInfo();
-  }
-
-  /// 加载商品信息（获取价格）
-  Future<void> _loadProductInfo() async {
-    final product = await _purchaseService.queryProductDetails();
-    if (product != null) {
-      emit(state.copyWith(priceString: product.price));
-    }
-  }
-
-  /// 购买 Pro
-  Future<void> purchasePro() async {
-    emit(state.copyWith(isLoading: true, errorMessage: null));
-    await _purchaseService.purchasePro();
-  }
-
-  /// 恢复购买
-  Future<void> restorePurchases() async {
-    emit(state.copyWith(isLoading: true, errorMessage: null));
-    await _purchaseService.restorePurchases();
-  }
-
-  /// 清除错误信息
-  void clearError() {
-    emit(state.copyWith(errorMessage: null));
-  }
-
-  @override
-  Future<void> close() {
-    _purchaseService.dispose();
-    return super.close();
-  }
-}
-```
+初始化时自动加载商品价格并检查本地购买状态。
 
 ---
 
@@ -349,407 +147,67 @@ class PurchaseCubit extends Cubit<PurchaseState> {
 
 ### 5.1 Pro 介绍弹窗
 
+> 文件路径：`lib/src/widgets/pro_upgrade_sheet.dart`
+
+**组件结构：**
+
+```
+ProUpgradeSheet
+├── 拖动指示条
+├── 标题栏（皇冠图标 + "Video Slimmer Pro"）
+├── 功能展示卡片（无限符号 + 视频图标）
+├── 权益列表
+│   ├── ✓ 一次购买，永久使用
+│   ├── ✓ 无限批量压缩视频
+│   └── ✓ 支持未来所有更新
+├── 当前选择提示（已选 X 个，免费版最多 5 个）
+├── 购买按钮（显示动态价格）
+└── 恢复购买按钮
+```
+
+**核心逻辑：**
+
 ```dart
-// lib/src/widgets/pro_upgrade_sheet.dart
-
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../constants/app_constants.dart';
-import '../constants/app_theme.dart';
-import '../cubits/purchase_cubit.dart';
-import '../libs/localization.dart';
-import '../models/purchase_state.dart';
-
-class ProUpgradeSheet extends StatelessWidget {
-  final int selectedCount;
-  final VoidCallback? onPurchaseSuccess;
-
-  const ProUpgradeSheet({
-    super.key,
-    required this.selectedCount,
-    this.onPurchaseSuccess,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocConsumer<PurchaseCubit, PurchaseState>(
-      listener: (context, state) {
-        // 购买成功后关闭弹窗
-        if (state.isPro) {
-          onPurchaseSuccess?.call();
-        }
-        // 显示错误提示
-        if (state.errorMessage != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.errorMessage!),
-              backgroundColor: Colors.red,
-            ),
-          );
-          context.read<PurchaseCubit>().clearError();
-        }
-      },
-      builder: (context, state) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: AppTheme.prosperityGray,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 拖动指示条
-                _buildDragHandle(),
-                const SizedBox(height: 16),
-                
-                // 标题
-                _buildTitle(),
-                const SizedBox(height: 24),
-                
-                // 功能展示卡片
-                _buildFeatureCard(),
-                const SizedBox(height: 24),
-                
-                // 权益列表
-                _buildBenefitsList(),
-                const SizedBox(height: 24),
-                
-                // 当前选择提示
-                _buildSelectionHint(),
-                const SizedBox(height: 24),
-                
-                // 购买按钮
-                _buildPurchaseButton(context, state),
-                const SizedBox(height: 12),
-                
-                // 恢复购买
-                _buildRestoreButton(context, state),
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildDragHandle() {
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      width: 40,
-      height: 4,
-      decoration: BoxDecoration(
-        color: AppTheme.prosperityLightGray,
-        borderRadius: BorderRadius.circular(2),
-      ),
-    );
-  }
-
-  Widget _buildTitle() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Icon(Icons.star, color: AppTheme.prosperityGold, size: 28),
-        const SizedBox(width: 8),
-        Text(
-          'Video Slimmer Pro',
-          style: AppTheme.titleLarge,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFeatureCard() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.prosperityBlack,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppTheme.prosperityGold.withOpacity(0.3),
-        ),
-      ),
-      child: Column(
-        children: [
-          // 视频图标排列
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
-            children: List.generate(
-              8,
-              (index) => const Icon(
-                Icons.videocam,
-                color: AppTheme.prosperityGold,
-                size: 24,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            tr('批量压缩，无限视频'),
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.prosperityLightGold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBenefitsList() {
-    final benefits = [
-      tr('一次购买，永久使用'),
-      tr('无限批量压缩视频'),
-      tr('支持未来所有更新'),
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        children: benefits.map((benefit) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.check_circle,
-                  color: AppTheme.prosperityGold,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  benefit,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: AppTheme.prosperityLightGold,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildSelectionHint() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.prosperityDarkGold.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.info_outline,
-            color: AppTheme.prosperityGold,
-            size: 18,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            tr('当前已选择 {count} 个视频，免费版最多支持 {max} 个')
-                .replaceAll('{count}', '$selectedCount')
-                .replaceAll('{max}', '${AppConstants.maxFreeVideoSelection}'),
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppTheme.prosperityLightGold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPurchaseButton(BuildContext context, PurchaseState state) {
-    final buttonText = state.priceString != null
-        ? '${tr('立即解锁')} - ${state.priceString}'
-        : tr('立即解锁');
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: SizedBox(
-        width: double.infinity,
-        height: 56,
-        child: ElevatedButton(
-          onPressed: state.isLoading
-              ? null
-              : () => context.read<PurchaseCubit>().purchasePro(),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.prosperityGold,
-            foregroundColor: AppTheme.prosperityBlack,
-            disabledBackgroundColor: AppTheme.prosperityGold.withOpacity(0.5),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(28),
-            ),
-          ),
-          child: state.isLoading
-              ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppTheme.prosperityBlack,
-                    ),
-                  ),
-                )
-              : Text(
-                  buttonText,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRestoreButton(BuildContext context, PurchaseState state) {
-    return TextButton(
-      onPressed: state.isLoading
-          ? null
-          : () => context.read<PurchaseCubit>().restorePurchases(),
-      child: Text(
-        tr('恢复购买'),
-        style: TextStyle(
-          fontSize: 14,
-          color: state.isLoading
-              ? AppTheme.prosperityLightGray
-              : AppTheme.prosperityGold,
-        ),
-      ),
-    );
-  }
-}
+BlocConsumer<PurchaseCubit, PurchaseState>(
+  listener: (context, state) {
+    if (state.isPro) onPurchaseSuccess?.call();  // 购买成功关闭弹窗
+    if (state.errorMessage != null) {
+      // 显示 SnackBar 错误提示
+    }
+  },
+  builder: (context, state) {
+    // 根据 state.isLoading 控制按钮状态
+    // 根据 state.priceString 显示价格
+  },
+)
 ```
 
 ---
 
 ## 6. 主屏幕集成
 
-### 6.1 修改浮动按钮逻辑
+### 6.1 浮动按钮逻辑
+
+> 文件路径：`lib/src/screens/home_screen.dart`
+
+**判断逻辑：**
 
 ```dart
-// lib/src/screens/home_screen.dart (部分代码)
+final exceedsLimit = selectedCount > AppConstants.maxFreeVideoSelection;
+final showUpgrade = exceedsLimit && !purchaseState.isPro;
 
-Widget _buildFloatingButtonContent() {
-  return BlocBuilder<VideoSelectionCubit, Set<String>>(
-    builder: (context, selectionState) {
-      if (selectionState.isEmpty) {
-        return const SizedBox.shrink();
-      }
-
-      final selectedCount = selectionState.length;
-      
-      return BlocBuilder<PurchaseCubit, PurchaseState>(
-        builder: (context, purchaseState) {
-          final isPro = purchaseState.isPro;
-          final exceedsLimit = selectedCount > AppConstants.maxFreeVideoSelection;
-          final showUpgrade = exceedsLimit && !isPro;
-
-          return Container(
-            height: 56,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: ElevatedButton(
-              onPressed: showUpgrade
-                  ? () => _showProUpgradeSheet(context, selectedCount)
-                  : _onNextPressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.prosperityGold,
-                foregroundColor: AppTheme.prosperityBlack,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (showUpgrade) ...[
-                    const Icon(Icons.lock_open, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      tr('解锁批量压缩'),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ] else ...[
-                    Text(
-                      '${tr('下一步')} ($selectedCount)',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          );
-        },
-      );
-    },
-  );
-}
-
-void _showProUpgradeSheet(BuildContext context, int selectedCount) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (context) => BlocProvider.value(
-      value: context.read<PurchaseCubit>(),
-      child: ProUpgradeSheet(
-        selectedCount: selectedCount,
-        onPurchaseSuccess: () {
-          Navigator.pop(context);
-          // 可选：购买成功后自动进入下一步
-          // _onNextPressed();
-        },
-      ),
-    ),
-  );
-}
+// showUpgrade = true  → 显示「解锁批量压缩」，点击弹出 ProUpgradeSheet
+// showUpgrade = false → 显示「下一步 (N)」，点击进入压缩配置页
 ```
 
 ### 6.2 全局 Provider 注入
 
-```dart
-// lib/main.dart
+> 文件路径：`lib/main.dart`
 
-void main() {
-  runApp(
-    MultiBlocProvider(
-      providers: [
-        BlocProvider<PurchaseCubit>(
-          create: (_) => PurchaseCubit(),
-        ),
-        // ... 其他 Provider
-      ],
-      child: const MyApp(),
-    ),
-  );
-}
+在 `MultiBlocProvider` 中添加 `PurchaseCubit`：
+
+```dart
+BlocProvider<PurchaseCubit>(create: (_) => PurchaseCubit()),
 ```
 
 ---
@@ -777,7 +235,141 @@ void main() {
 
 ---
 
-## 8. 测试清单
+## 8. StoreKit 本地测试配置
+
+Xcode 提供了 StoreKit Configuration File（`.storekit`），允许在**本地模拟 IAP 购买流程**，无需连接 App Store Connect，极大提升开发效率。
+
+### 8.1 创建配置文件
+
+1. Xcode 菜单：**File → New → File → StoreKit Configuration File**
+2. 命名为 `StoreKitConfig.storekit`，保存在 `ios/Runner/` 目录
+
+### 8.2 配置 IAP 产品
+
+在左侧面板 **IN-APP PURCHASES** 区域添加产品：
+
+| 配置项 | 值 | 说明 |
+|:---|:---|:---|
+| **Reference Name** | Video Slimmer Pro | 产品参考名称 |
+| **Product ID** | `video_slimmer_pro` | 需与代码中 `AppConstants.proProductId` 一致 |
+| **Type** | Non-Consumable | 非消耗型（一次性买断） |
+| **Price** | 18.00 | 测试价格（人民币） |
+
+### 8.3 配置测试环境
+
+在右侧面板配置测试参数：
+
+#### Storefront and Localization（店面和本地化）
+
+| 配置项 | 推荐值 | 说明 |
+|:---|:---|:---|
+| **Default Storefront** | China mainland (CNY) | 默认商店区域 |
+| **Default Localization** | Chinese (Simplified) | 默认语言 |
+
+#### Purchase Options（购买选项）
+
+| 配置项 | 可选值 | 推荐值 | 说明 |
+|:---|:---|:---|:---|
+| **Subscription Renewal Rate** | Real Time / Monthly Rate / Yearly Rate | Real Time | 订阅续费速率，Real Time 表示实时续费，加速测试订阅周期 |
+| **Interrupted Purchases** | Not Enabled / Enabled | Not Enabled | 模拟购买中断场景（如需要 SCA 强认证） |
+| **Billing Retry** | Not Enabled / Enabled | Not Enabled | 模拟账单重试场景（支付失败后自动重试） |
+| **Grace Period** | Not Enabled / 3 Days / 6 Days / 16 Days | Not Enabled | 订阅宽限期，过期后仍可使用服务的天数 |
+| **Ask to Buy** | Not Enabled / Enabled | Not Enabled | 模拟家长控制"请求购买"功能 |
+| **Dialogs** | Enabled / Disabled | Enabled | 是否显示系统购买确认对话框 |
+
+> **提示**：本项目为非消耗型商品，Subscription 相关选项（Renewal Rate、Grace Period）不影响测试。
+
+### 8.4 模拟故障场景
+
+**Simulated StoreKit Failures** 用于测试错误处理逻辑，勾选后可模拟对应错误。
+
+#### 故障模拟详情
+
+| 故障项 | 可选错误 | 触发时机 | 用户体验 |
+|:---|:---|:---|:---|
+| ⭐⭐⭐ **Load Products** | Network Error | `queryProductDetails()` | 无法获取价格 |
+| ⭐⭐⭐ **Purchase** | Product Unavailable | `buyNonConsumable()` | 购买失败，显示错误提示 |
+| ⭐ **Verification** | Revoked Certificate | 收据验证时 | 付款成功但功能未解锁 |
+| ⭐⭐ **App Store Sync** | Network Error | `restorePurchases()` | 恢复购买失败 |
+| ⚪ **Subscription Status** | Network Error | 查询订阅状态 | *本项目不涉及* |
+| ⚪ **App Transaction** | System Error | 获取交易历史 | 无法自动恢复 Pro |
+| ⚪ **Manage Subscriptions** | System Error | 打开订阅管理页 | *本项目不涉及* |
+| ⚪ **Refund Request** | Duplicate Request | 发起退款时 | 提示重复请求 |
+| ⚪ **Offer Code Redeem** | Not Available | 兑换优惠码时 | *本项目不涉及* |
+
+> **注意**：标记 ⚪ 的项目本项目暂不涉及，可跳过测试。
+
+#### 8.4.10 本项目测试优先级
+
+| 优先级 | 故障项 | 测试目的 |
+|:---|:---|:---|
+| ⭐⭐⭐ 必测 | **Load Products** | 验证网络异常时价格显示和错误提示 |
+| ⭐⭐⭐ 必测 | **Purchase** | 验证购买失败时的 UI 反馈和状态恢复 |
+| ⭐⭐ 建议 | **App Store Sync** | 验证"恢复购买"失败时的处理 |
+| ⭐ 可选 | **Verification** | 验证收据验证失败的边界场景 |
+| ⚪ 跳过 | 其他 | 本项目暂不涉及订阅/优惠码/退款功能 |
+
+#### 8.4.11 测试流程示例
+
+```
+1. 打开 StoreKitConfig.storekit
+2. 勾选 "Load Products" → Network Error
+3. 运行应用 → 点击购买按钮
+4. 预期结果：显示"未找到商品信息"错误
+5. 取消勾选，继续测试下一项
+```
+
+#### 8.4.12 配置修改生效规则
+
+StoreKit 配置修改**大部分实时生效**，无需重启应用：
+
+| 配置类型 | 生效方式 | 说明 |
+|:---|:---|:---|
+| **Simulated Failures** | ✅ 实时生效 | 勾选/取消后，下次 API 调用立即生效 |
+| **Purchase Options** | ✅ 实时生效 | 如 Dialogs、Ask to Buy 等 |
+| **Storefront / Localization** | ⚠️ 需重新查询 | 修改后需重新调用 `queryProductDetails()` |
+| **产品价格 / 信息** | ⚠️ 需重新查询 | 修改后需重新查询商品信息 |
+| **新增 / 删除产品** | ⚠️ 需重新查询 | 修改后需重新查询商品列表 |
+| **Scheme 关联变更** | ❌ 需重启应用 | 修改 Scheme 的 StoreKit Configuration 需重新运行 |
+
+**实时测试流程：** 应用运行中直接修改配置 → 下次 API 调用立即生效 → 无需重启
+
+**商品信息变更：** 修改价格/名称后需重新进入购买页面或调用 `queryProductDetails()` 刷新
+
+### 8.5 关联 Scheme 配置
+
+1. Xcode 菜单：**Product → Scheme → Edit Scheme**
+2. 选择 **Run** → **Options** 标签
+3. **StoreKit Configuration** 选择 `StoreKitConfig.storekit`
+
+### 8.6 测试流程
+
+1. **启动应用**：使用关联了 StoreKit 配置的 Scheme 运行
+2. **触发购买**：选择超过 5 个视频，点击「解锁批量压缩」
+3. **模拟支付**：系统弹出模拟购买对话框，确认即可
+4. **验证状态**：`PurchaseState.isPro` 应变为 `true`
+5. **恢复购买**：点击「恢复购买」测试恢复逻辑
+
+### 8.7 测试优势
+
+| 优势 | 说明 |
+|:---|:---|
+| 🚀 **无需真机** | 模拟器即可完整测试 IAP 流程 |
+| 🔄 **快速迭代** | 无需等待 App Store Connect 审核 |
+| ⚡ **即时验证** | 购买立即生效，无网络延迟 |
+| 🐛 **错误模拟** | 可模拟各种边界场景和异常 |
+| 🔒 **隔离环境** | 不产生真实交易，安全可控 |
+
+### 8.8 注意事项
+
+1. **Product ID 一致性**：配置文件中的 Product ID 必须与 `AppConstants.proProductId` 完全一致
+2. **Scheme 关联**：每次运行需确保 Scheme 已关联 StoreKit 配置
+3. **真机测试**：上线前仍需在真机使用沙盒账号进行完整测试
+4. **配置同步**：StoreKit 配置不会与 App Store Connect 同步，需手动保持一致
+
+---
+
+## 9. 测试清单
 
 | 测试项 | 说明 |
 |:---|:---|
@@ -789,14 +381,16 @@ void main() {
 | ✅ 网络异常 | 无网络时有友好提示 |
 | ✅ 购买取消 | 用户取消购买后状态正确 |
 | ✅ 购买失败 | 失败时显示错误信息 |
+| ✅ StoreKit 模拟 | 本地 StoreKit 配置能正常模拟购买流程 |
+| ✅ 故障模拟 | 开启故障模拟后能正确触发错误处理 |
 
 ---
 
-## 9. 注意事项
+## 10. 注意事项
 
 1. **收据验证**：生产环境建议增加服务端收据验证，防止越狱设备绕过
 2. **购买完成**：必须调用 `completePurchase()`，否则会重复推送购买
-3. **沙盒测试**：只能在真机上测试，模拟器不支持 IAP
+3. **沙盒测试**：只能在真机上测试，模拟器不支持 IAP（但 StoreKit 配置可在模拟器运行）
 4. **审核要求**：
    - 必须有"恢复购买"按钮
    - 必须在购买前展示价格
@@ -804,5 +398,5 @@ void main() {
 
 ---
 
-**文档版本**: v1.0  
-**更新日期**: 2025-12-08
+**文档版本**: v1.2  
+**更新日期**: 2025-12-11

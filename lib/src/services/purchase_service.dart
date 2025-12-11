@@ -3,34 +3,34 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_constants.dart';
 import '../libs/logger.dart';
+import '../models/purchase_event.dart';
 
 final _logger = Logger.getLogger();
 
 /// IAP 购买服务
 /// 处理应用内购买的所有逻辑
 class PurchaseService {
-  static final PurchaseService _instance = PurchaseService._internal();
-  factory PurchaseService() => _instance;
-  PurchaseService._internal();
-
   final InAppPurchase _iap = InAppPurchase.instance;
   StreamSubscription<List<PurchaseDetails>>? _subscription;
 
-  /// 购买状态变化回调
-  Function(bool isPro)? onPurchaseStatusChanged;
+  /// 事件流控制器（私有，防止外部修改）
+  final _eventController = StreamController<PurchaseEvent>.broadcast();
 
-  /// 错误回调
-  Function(String error)? onPurchaseError;
+  /// 购买事件流（只读，供外部订阅）
+  Stream<PurchaseEvent> get events => _eventController.stream;
 
-  /// 加载状态变化回调
-  Function(bool isLoading)? onLoadingChanged;
+  /// 发送事件（内部使用）
+  void _emit(PurchaseEvent event) {
+    _logger.debug('发送购买事件', {'event': event.toString()});
+    _eventController.add(event);
+  }
 
   /// 初始化 IAP
   Future<void> initialize() async {
     final bool available = await _iap.isAvailable();
     if (!available) {
       _logger.warning('IAP 不可用');
-      onPurchaseError?.call('应用内购买不可用');
+      _emit(const PurchaseError('应用内购买不可用'));
       return;
     }
     _logger.info('IAP 初始化成功');
@@ -38,7 +38,7 @@ class PurchaseService {
       _handlePurchaseUpdates,
       onError: (error) {
         _logger.error('IAP 购买流错误', error: error);
-        onPurchaseError?.call(error.toString());
+        _emit(PurchaseError(error.toString()));
       },
     );
     await _checkLocalPurchaseStatus();
@@ -47,6 +47,7 @@ class PurchaseService {
   /// 释放资源
   void dispose() {
     _subscription?.cancel();
+    _eventController.close();
   }
 
   /// 查询商品信息
@@ -57,12 +58,12 @@ class PurchaseService {
     );
     if (response.error != null) {
       _logger.error('查询商品失败', error: response.error);
-      onPurchaseError?.call(response.error!.message);
+      _emit(PurchaseError(response.error!.message));
       return null;
     }
     if (response.productDetails.isEmpty) {
       _logger.warning('未找到商品信息');
-      onPurchaseError?.call('未找到商品信息');
+      _emit(const PurchaseError('未找到商品信息'));
       return null;
     }
     final product = response.productDetails.first;
@@ -72,10 +73,10 @@ class PurchaseService {
 
   /// 发起购买
   Future<void> purchasePro() async {
-    onLoadingChanged?.call(true);
+    _emit(const PurchaseLoading(true));
     final product = await queryProductDetails();
     if (product == null) {
-      onLoadingChanged?.call(false);
+      _emit(const PurchaseLoading(false));
       return;
     }
     final PurchaseParam purchaseParam = PurchaseParam(
@@ -88,7 +89,7 @@ class PurchaseService {
   /// 恢复购买
   Future<void> restorePurchases() async {
     _logger.info('恢复购买');
-    onLoadingChanged?.call(true);
+    _emit(const PurchaseLoading(true));
     await _iap.restorePurchases();
   }
 
@@ -108,12 +109,12 @@ class PurchaseService {
           break;
         case PurchaseStatus.error:
           _logger.error('购买失败', error: purchase.error);
-          onPurchaseError?.call(purchase.error?.message ?? '购买失败');
-          onLoadingChanged?.call(false);
+          _emit(PurchaseError(purchase.error?.message ?? '购买失败'));
+          _emit(const PurchaseLoading(false));
           break;
         case PurchaseStatus.canceled:
           _logger.info('用户取消购买');
-          onLoadingChanged?.call(false);
+          _emit(const PurchaseLoading(false));
           break;
       }
       if (purchase.pendingCompletePurchase) {
@@ -128,8 +129,8 @@ class PurchaseService {
     if (purchase.status == PurchaseStatus.purchased ||
         purchase.status == PurchaseStatus.restored) {
       await _savePurchaseStatus(true);
-      onPurchaseStatusChanged?.call(true);
-      onLoadingChanged?.call(false);
+      _emit(const PurchaseStatusChanged(true));
+      _emit(const PurchaseLoading(false));
       _logger.info('Pro 功能已解锁');
     }
   }
@@ -139,7 +140,7 @@ class PurchaseService {
     final prefs = await SharedPreferences.getInstance();
     final isPro = prefs.getBool(AppConstants.purchaseStatusKey) ?? false;
     _logger.info('本地购买状态: isPro=$isPro');
-    onPurchaseStatusChanged?.call(isPro);
+    _emit(PurchaseStatusChanged(isPro));
   }
 
   /// 保存购买状态到本地
