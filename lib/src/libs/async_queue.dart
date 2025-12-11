@@ -23,8 +23,11 @@ class AsyncQueue<T> {
     }
   }
 
-  // 异步获取任务
-  Future<T> take() {
+  /// 异步获取任务
+  ///
+  /// [timeout] 可选的超时时间，超时后会抛出 [TimeoutException]。
+  /// 这可以用于定期检查循环条件，避免永久阻塞。
+  Future<T> take({Duration? timeout}) {
     if (_queue.isNotEmpty) {
       // 如果队列不为空，则直接返回队列的第一个元素
       return Future.value(_queue.removeFirst());
@@ -32,6 +35,16 @@ class AsyncQueue<T> {
       final completer = Completer<T>();
       // 如果队列空，则返回一个 Future，当有任务时，就完成这个 Future
       _waiters.add(completer);
+
+      if (timeout != null) {
+        // 带超时的等待
+        return completer.future.timeout(timeout, onTimeout: () {
+          // 超时时从等待队列中移除
+          _waiters.remove(completer);
+          throw TimeoutException('Queue take timed out', timeout);
+        });
+      }
+
       // 返回一个 Future，当有任务时，就完成这个 Future，否则等待
       return completer.future;
     }

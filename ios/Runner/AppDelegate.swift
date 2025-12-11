@@ -36,6 +36,11 @@ class ProgressStreamHandler: NSObject, FlutterStreamHandler {
   // 进度流处理器
   private let progressHandler = ProgressStreamHandler()
   
+  // 存储正在进行的下载请求 ID，用于取消下载
+  private var activeDownloadRequests: [String: PHImageRequestID] = [:]
+  // 线程安全锁
+  private let requestsLock = NSLock()
+  
   /// 应用启动完成回调
   /// 在此处设置 MethodChannel 和注册插件
   override func application(
@@ -56,6 +61,8 @@ class ProgressStreamHandler: NSObject, FlutterStreamHandler {
         self.getVideoMetadata(call: call, result: result)
       } else if call.method == "getVideoFilePath" {
         self.getVideoFilePath(call: call, result: result)
+      } else if call.method == "cancelDownload" {
+        self.cancelDownload(call: call, result: result)
       } else {
         // 未实现的方法返回错误
         result(FlutterMethodNotImplemented)
@@ -198,7 +205,12 @@ class ProgressStreamHandler: NSObject, FlutterStreamHandler {
     }
     
     // 请求视频文件
-    PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, audioMix, info in
+    let requestId = PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, audioMix, info in
+      // 请求完成，从活跃请求列表中移除
+      self.requestsLock.lock()
+      self.activeDownloadRequests.removeValue(forKey: assetId)
+      self.requestsLock.unlock()
+      
       // 检查是否被取消
       if let cancelled = info?[PHImageCancelledKey] as? Bool, cancelled {
         print("[VideoFilePath] 请求被取消")
@@ -230,6 +242,38 @@ class ProgressStreamHandler: NSObject, FlutterStreamHandler {
       
       // 直接返回文件路径
       result(filePath)
+    }
+    
+    // 保存请求 ID，用于后续取消
+    requestsLock.lock()
+    activeDownloadRequests[assetId] = requestId
+    requestsLock.unlock()
+    print("[VideoFilePath] 已保存请求 ID: \(requestId)")
+  }
+  
+  /// 取消视频下载
+  ///
+  /// - Parameters:
+  ///   - call: Flutter 方法调用对象，包含 assetId 参数
+  ///   - result: 结果回调，返回是否成功取消
+  private func cancelDownload(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard let args = call.arguments as? [String: Any],
+          let assetId = args["assetId"] as? String else {
+      result(FlutterError(code: "INVALID_ARGUMENT", message: "参数无效", details: nil))
+      return
+    }
+    
+    requestsLock.lock()
+    if let requestId = activeDownloadRequests[assetId] {
+      PHImageManager.default().cancelImageRequest(requestId)
+      activeDownloadRequests.removeValue(forKey: assetId)
+      requestsLock.unlock()
+      print("[CancelDownload] 已取消下载: \(assetId), requestId: \(requestId)")
+      result(true)
+    } else {
+      requestsLock.unlock()
+      print("[CancelDownload] 未找到活跃的下载请求: \(assetId)")
+      result(false)
     }
   }
 }

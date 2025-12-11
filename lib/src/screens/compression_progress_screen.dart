@@ -370,9 +370,9 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(context).pop();
-              _progressCubit.cancelVideo(videoInfo.video.id);
+              await _progressCubit.cancelVideo(videoInfo.video.id);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.prosperityDarkGold,

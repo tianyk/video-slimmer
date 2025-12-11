@@ -66,6 +66,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   static const _progressChannel =
       EventChannel('cc.kekek.videoslimmer/progress');
 
+  // 进度监听订阅
   StreamSubscription? _progressSubscription;
 
   CompressionProgressCubit() : super(const CompressionProgressState()) {
@@ -102,14 +103,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   // 下载队列
   final AsyncQueue<String> _videoIdsToDownload = AsyncQueue();
 
-// 是否正在处理视频压缩
-  bool _isRunning = false;
-
   @override
   Future<void> close() async {
-    _isRunning = false;
-    _videoIdsToCompress.clear();
-    _videoIdsToDownload.clear();
     _progressSubscription?.cancel();
 
     // 清理未保存的临时压缩文件
@@ -131,7 +126,14 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       }
     }
 
-    return super.close();
+    // 先调用 super.close()，设置 isClosed = true
+    // 这样循环在检查 isClosed 时能正确得到 true 并退出
+    await super.close();
+
+    // 再清空队列，触发 StateError
+    // 循环捕获异常后检查 isClosed（已经是 true），会 break 退出
+    _videoIdsToCompress.clear();
+    _videoIdsToDownload.clear();
   }
 
   /// 初始化压缩任务
@@ -173,8 +175,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   /// 开始压缩任务
   void startCompression() {
     _logger.info('开始压缩任务');
-    // 设置为正在处理
-    _isRunning = true;
 
     // 调度所有需要下载的视频
     _scheduleDownloads();
@@ -185,13 +185,27 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   /// 调度下载任务
   Future<void> _scheduleDownloads() async {
-    while (_isRunning) {
-      // 获取一个待下载的视频 ID
-      final videoId = await _videoIdsToDownload.take();
+    // 使用 isClosed 作为循环条件，Cubit 关闭时自动退出
+    while (!isClosed) {
+      String? videoId;
+      try {
+        // 获取一个待下载的视频 ID
+        // 使用 1 秒超时，定期检查 isClosed 条件，避免永久阻塞
+        videoId = await _videoIdsToDownload.take(
+          timeout: const Duration(seconds: 1),
+        );
+      } on TimeoutException {
+        // 超时，继续检查 while 条件
+        continue;
+      } on StateError {
+        // 队列被清空，继续检查 while 条件（如果 isClosed 则退出）
+        continue;
+      }
+
       _logger.info('开始下载视频', {'videoId': videoId});
       try {
         final videoInfo = state.getVideoCompressionInfoByVideoId(videoId);
-        // 如果视频状态为等待下载，则开始下载
+        // 只处理等待下载状态的视频，其他状态跳过（可能已被取消）
         if (videoInfo.status == VideoCompressionStatus.waitingDownload) {
           // 更新视频状态为正在下载
           _updateVideoStatus(videoId, VideoCompressionStatus.downloading);
@@ -217,10 +231,26 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   /// 调度压缩任务
   Future<void> _scheduleCompression() async {
     _logger.info('开始执行压缩任务');
-    while (_isRunning) {
-      final videoId = await _videoIdsToCompress.take();
+    // 使用 isClosed 作为循环条件，Cubit 关闭时自动退出
+    while (!isClosed) {
+      String? videoId;
+      try {
+        // 获取一个待压缩的视频 ID
+        // 使用 1 秒超时，定期检查 isClosed 条件，避免永久阻塞
+        videoId = await _videoIdsToCompress.take(
+          timeout: const Duration(seconds: 1),
+        );
+      } on TimeoutException {
+        // 超时，继续检查 while 条件
+        continue;
+      } on StateError {
+        // 队列被清空，继续检查 while 条件（如果 isClosed 则退出）
+        continue;
+      }
+
       try {
         final videoInfo = state.getVideoCompressionInfoByVideoId(videoId);
+        // 只处理 waiting 状态的视频，其他状态跳过（可能已被取消）
         if (videoInfo.status == VideoCompressionStatus.waiting) {
           // 更新视频状态为正在压缩
           _updateVideoStatus(videoId, VideoCompressionStatus.compressing);
@@ -928,14 +958,30 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   }
 
   /// 更新视频压缩进度
+  ///
+  /// 使用整数百分比比对，避免 double 精度问题导致的频繁更新。
+  /// 只有当进度百分比或剩余时间发生变化时才更新状态。
   void _updateVideoProgress(
       String videoId, double progress, int remainingSeconds) {
+    // 获取当前视频信息
+    final currentVideo = state.getVideoCompressionInfoByVideoId(videoId);
+
+    // 将进度转为整数百分比比较，避免 double 精度问题
+    final currentPercent = (currentVideo.progress * 100).toInt();
+    final newPercent = (progress * 100).toInt();
+    final newRemaining = remainingSeconds > 0 ? remainingSeconds : null;
+
+    // 如果进度百分比和剩余时间都没变化，跳过更新
+    if (currentPercent == newPercent &&
+        currentVideo.estimatedTimeRemaining == newRemaining) {
+      return;
+    }
+
     final updatedVideos = state.videos.map((video) {
       if (video.video.id == videoId) {
         return video.copyWith(
           progress: progress,
-          estimatedTimeRemaining:
-              remainingSeconds > 0 ? remainingSeconds : null,
+          estimatedTimeRemaining: newRemaining,
         );
       }
       return video;
@@ -956,7 +1002,7 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   }
 
   /// 取消视频（包括下载和压缩）
-  void cancelVideo(String videoId) {
+  Future<void> cancelVideo(String videoId) async {
     final video = state.getVideoCompressionInfoByVideoId(videoId);
 
     if (video.status == VideoCompressionStatus.waitingDownload) {
@@ -965,6 +1011,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       _videoIdsToDownload.remove(videoId);
     } else if (video.status == VideoCompressionStatus.downloading) {
       _logger.info('取消正在下载', {'videoId': video.video.id});
+      // 调用原生方法取消下载
+      await _cancelDownload(videoId);
     } else if (video.status == VideoCompressionStatus.compressing) {
       FFmpegKit.cancel(video.sessionId);
       _logger.info('取消正在压缩', {'videoId': video.video.id});
@@ -980,6 +1028,21 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       VideoCompressionStatus.cancelled,
       progress: 0.0,
     );
+  }
+
+  /// 调用原生方法取消视频下载
+  Future<bool> _cancelDownload(String videoId) async {
+    try {
+      final result = await _platform.invokeMethod<bool>(
+        'cancelDownload',
+        {'assetId': videoId},
+      );
+      _logger.info('取消下载结果', {'videoId': videoId, 'success': result});
+      return result ?? false;
+    } on PlatformException catch (e) {
+      _logger.error('取消下载失败', error: e, data: {'videoId': videoId});
+      return false;
+    }
   }
 
   /// 重新压缩视频
@@ -1019,16 +1082,26 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   }
 
   /// 取消所有压缩
+  ///
+  /// 此方法会清空队列，循环会捕获 StateError 并继续等待新任务。
+  /// 后续 retryVideo() 可以正常添加任务到队列。
   void cancelAllCompression() {
-    // 取消所有 FFmpeg 会话
-    FFmpegKit.cancel();
+    // 只取消当前正在运行的 FFmpeg 会话（按 sessionId）
+    for (final video in state.videos) {
+      if (video.sessionId != null &&
+          video.status == VideoCompressionStatus.compressing) {
+        FFmpegKit.cancel(video.sessionId);
+        _logger.debug('取消 FFmpeg 会话', {'sessionId': video.sessionId});
+      }
+    }
 
-    // 清空队列
+    // 清空队列（循环会捕获 StateError 并 continue 继续等待）
     _videoIdsToCompress.clear();
     _videoIdsToDownload.clear();
 
     final updatedVideos = state.videos.map((video) {
       if (video.status == VideoCompressionStatus.waiting ||
+          video.status == VideoCompressionStatus.waitingDownload ||
           video.status == VideoCompressionStatus.downloading ||
           video.status == VideoCompressionStatus.compressing) {
         return video.copyWith(
