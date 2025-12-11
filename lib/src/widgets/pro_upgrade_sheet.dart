@@ -6,9 +6,11 @@ import '../constants/app_theme.dart';
 import '../cubits/purchase_cubit.dart';
 import '../libs/localization.dart';
 import '../models/purchase_state.dart';
+import 'app_bottom_sheet.dart';
 import 'primary_action_button.dart';
 
-/// Pro 版升级介绍弹窗
+/// Pro 版升级介绍弹窗内容
+/// 使用 [showProUpgradeSheet] 函数来显示
 class ProUpgradeSheet extends StatelessWidget {
   final int selectedCount;
   final VoidCallback? onPurchaseSuccess;
@@ -37,47 +39,25 @@ class ProUpgradeSheet extends StatelessWidget {
         }
       },
       builder: (context, state) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: AppTheme.prosperityGray,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildDragHandle(),
-                const SizedBox(height: 16),
-                _buildTitle(),
-                const SizedBox(height: 24),
-                _buildFeatureCard(),
-                const SizedBox(height: 24),
-                _buildBenefitsList(),
-                const SizedBox(height: 24),
-                _buildSelectionHint(),
-                const SizedBox(height: 24),
-                _buildPurchaseButton(context, state),
-                const SizedBox(height: 12),
-                _buildRestoreButton(context, state),
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            _buildTitle(),
+            const SizedBox(height: 20),
+            _buildFeatureCard(),
+            const SizedBox(height: 28),
+            _buildBenefitsList(),
+            const SizedBox(height: 20),
+            _buildSelectionHint(),
+            const SizedBox(height: 24),
+            _buildPurchaseButton(context, state),
+            const SizedBox(height: 12),
+            _buildRestoreButton(context, state),
+            const SizedBox(height: 16),
+          ],
         );
       },
-    );
-  }
-
-  /// 构建顶部拖动指示条
-  Widget _buildDragHandle() {
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      width: 40,
-      height: 4,
-      decoration: BoxDecoration(
-        color: AppTheme.prosperityLightGray,
-        borderRadius: BorderRadius.circular(2),
-      ),
     );
   }
 
@@ -97,7 +77,7 @@ class ProUpgradeSheet extends StatelessWidget {
     );
   }
 
-  /// 构建功能展示卡片：视频图标阵列 + 核心卖点文案
+  /// 构建功能展示卡片：无限符号 + 视频图标 + 核心卖点文案
   Widget _buildFeatureCard() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -105,24 +85,30 @@ class ProUpgradeSheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.prosperityBlack,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppTheme.prosperityGold.withValues(alpha: 0.3),
-        ),
       ),
       child: Column(
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
-            children: List.generate(
-              8,
-              (index) => const Icon(
-                Icons.videocam,
-                color: AppTheme.prosperityGold,
-                size: 24,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Remix.video_fill,
+                color: AppTheme.prosperityGold.withValues(alpha: 0.6),
+                size: 28,
               ),
-            ),
+              const SizedBox(width: 8),
+              const Icon(
+                Remix.infinity_fill,
+                color: AppTheme.prosperityGold,
+                size: 40,
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Remix.video_fill,
+                color: AppTheme.prosperityGold.withValues(alpha: 0.6),
+                size: 28,
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           Text(
@@ -154,7 +140,7 @@ class ProUpgradeSheet extends StatelessWidget {
             child: Row(
               children: [
                 const Icon(
-                  Icons.check_circle,
+                  Remix.checkbox_circle_fill,
                   color: AppTheme.prosperityGold,
                   size: 20,
                 ),
@@ -180,16 +166,16 @@ class ProUpgradeSheet extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.prosperityDarkGold.withValues(alpha: 0.2),
+        color: AppTheme.prosperityDarkGold.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.info_outline,
-            color: AppTheme.prosperityGold,
-            size: 18,
+          Icon(
+            Remix.information_line,
+            color: AppTheme.prosperityGold.withValues(alpha: 0.7),
+            size: 16,
           ),
           const SizedBox(width: 8),
           Flexible(
@@ -197,9 +183,9 @@ class ProUpgradeSheet extends StatelessWidget {
               tr('当前已选择 {count} 个视频，免费版最多支持 {max} 个')
                   .replaceAll('{count}', '$selectedCount')
                   .replaceAll('{max}', '${AppConstants.maxFreeVideoSelection}'),
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppTheme.prosperityLightGold,
+              style: TextStyle(
+                fontSize: 13,
+                color: AppTheme.prosperityLightGold.withValues(alpha: 0.8),
               ),
             ),
           ),
@@ -242,4 +228,26 @@ class ProUpgradeSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 显示 Pro 升级弹窗的便捷函数
+///
+/// [onPurchaseSuccess] 回调会传入 modalContext，方便关闭弹窗
+Future<void> showProUpgradeSheet({
+  required BuildContext context,
+  required int selectedCount,
+  void Function(BuildContext modalContext)? onPurchaseSuccess,
+}) {
+  return showAppBottomSheet(
+    context: context,
+    builder: (modalContext) => BlocProvider.value(
+      value: context.read<PurchaseCubit>(),
+      child: ProUpgradeSheet(
+        selectedCount: selectedCount,
+        onPurchaseSuccess: onPurchaseSuccess != null
+            ? () => onPurchaseSuccess(modalContext)
+            : null,
+      ),
+    ),
+  );
 }

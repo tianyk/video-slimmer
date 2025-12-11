@@ -12,6 +12,7 @@ import '../libs/localization.dart';
 import '../models/purchase_state.dart';
 import '../models/video_model.dart';
 import '../utils.dart';
+import '../widgets/app_bottom_sheet.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/pro_upgrade_sheet.dart';
 import '../widgets/video_thumbnail.dart';
@@ -173,19 +174,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// 显示 Pro 升级弹窗
   void _showProUpgradeSheet(BuildContext context, int selectedCount) {
-    showModalBottomSheet(
+    showProUpgradeSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (modalContext) => BlocProvider.value(
-        value: context.read<PurchaseCubit>(),
-        child: ProUpgradeSheet(
-          selectedCount: selectedCount,
-          onPurchaseSuccess: () {
-            Navigator.pop(modalContext);
-          },
-        ),
-      ),
+      selectedCount: selectedCount,
+      onPurchaseSuccess: (modalContext) => Navigator.pop(modalContext),
     );
   }
 
@@ -306,112 +298,73 @@ class _HomeScreenState extends State<HomeScreen> {
     final filterCubit = context.read<VideoFilterCubit>();
     final currentState = filterCubit.state;
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
-      builder: (BuildContext modalContext) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 标题栏
-            Container(
-              height: 56,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              alignment: Alignment.centerLeft,
-              child: Text(
-                tr('排序方式'),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            // 排序选项
-            _SortOption(
-              title: tr('文件大小'),
-              sortKey: 'size',
-              currentSort: currentState.sortBy,
-              isDescending: currentState.sortDescending,
-              onTap: (sortKey) => _handleSortSelection(
-                  modalContext, filterCubit, sortKey, currentState),
-            ),
-            _SortOption(
-              title: tr('拍摄时间'),
-              sortKey: 'date',
-              currentSort: currentState.sortBy,
-              isDescending: currentState.sortDescending,
-              onTap: (sortKey) => _handleSortSelection(
-                  modalContext, filterCubit, sortKey, currentState),
-            ),
-            _SortOption(
-              title: tr('视频时长'),
-              sortKey: 'duration',
-              currentSort: currentState.sortBy,
-              isDescending: currentState.sortDescending,
-              onTap: (sortKey) => _handleSortSelection(
-                  modalContext, filterCubit, sortKey, currentState),
-            ),
-            const SizedBox(height: 16),
-          ],
-        );
-      },
+      title: tr('排序方式'),
+      builder: (modalContext) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _SortOption(
+            title: tr('文件大小'),
+            sortKey: 'size',
+            currentSort: currentState.sortBy,
+            isDescending: currentState.sortDescending,
+            onTap: (sortKey) => _handleSortSelection(
+                modalContext, filterCubit, sortKey, currentState),
+          ),
+          _SortOption(
+            title: tr('拍摄时间'),
+            sortKey: 'date',
+            currentSort: currentState.sortBy,
+            isDescending: currentState.sortDescending,
+            onTap: (sortKey) => _handleSortSelection(
+                modalContext, filterCubit, sortKey, currentState),
+          ),
+          _SortOption(
+            title: tr('视频时长'),
+            sortKey: 'duration',
+            currentSort: currentState.sortBy,
+            isDescending: currentState.sortDescending,
+            onTap: (sortKey) => _handleSortSelection(
+                modalContext, filterCubit, sortKey, currentState),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
     );
   }
 
   void _showFilterDialog(BuildContext context) {
     final filterCubit = context.read<VideoFilterCubit>();
 
-    showModalBottomSheet(
+    showAppBottomSheet(
       context: context,
-      builder: (BuildContext modalContext) {
-        return BlocProvider.value(
-          value: filterCubit,
-          child: BlocBuilder<VideoFilterCubit, VideoFilterState>(
-            builder: (context, filterState) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 标题栏
-                  Container(
-                    height: 56,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          tr('筛选标签'),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (filterState.selectedTags.isNotEmpty)
-                          TextButton(
-                            onPressed: () => filterCubit.clearAllTags(),
-                            child: Text(tr('清除全部')),
-                          ),
-                      ],
-                    ),
-                  ),
-                  // 标签列表
-                  _FilterListTile(
-                    title: '1080p',
-                    tag: '1080p',
-                    isSelected: filterState.selectedTags.contains('1080p'),
-                    onTap: () => filterCubit.toggleTag('1080p'),
-                  ),
-                  _FilterListTile(
-                    title: '4K',
-                    tag: '4k',
-                    isSelected: filterState.selectedTags.contains('4k'),
-                    onTap: () => filterCubit.toggleTag('4k'),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              );
-            },
-          ),
-        );
-      },
+      title: tr('筛选标签'),
+      builder: (_) => BlocProvider.value(
+        value: filterCubit,
+        child: BlocBuilder<VideoFilterCubit, VideoFilterState>(
+          builder: (context, filterState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _FilterListTile(
+                  title: '1080p',
+                  tag: '1080p',
+                  isSelected: filterState.selectedTags.contains('1080p'),
+                  onTap: () => filterCubit.toggleTag('1080p'),
+                ),
+                _FilterListTile(
+                  title: '4K',
+                  tag: '4k',
+                  isSelected: filterState.selectedTags.contains('4k'),
+                  onTap: () => filterCubit.toggleTag('4k'),
+                ),
+                const SizedBox(height: 16),
+              ],
+            );
+          },
+        ),
+      ),
     );
   }
 
