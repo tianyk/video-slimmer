@@ -28,6 +28,7 @@ dependencies:
   uuid: ^4.5.1
   pool: ^1.5.1
   in_app_purchase: ^3.2.0
+  live_activities: ^2.0.2
 
 dev_dependencies:
   flutter_test:

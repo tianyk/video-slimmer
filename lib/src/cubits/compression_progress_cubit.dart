@@ -19,7 +19,9 @@ import '../libs/async_queue.dart';
 import '../libs/logger.dart';
 import '../models/compression_model.dart';
 import '../models/compression_progress_model.dart';
+import '../models/live_activity_data.dart';
 import '../models/video_model.dart';
+import '../services/live_activity_service.dart';
 import '../utils.dart';
 
 final _logger = Logger.getLogger();
@@ -69,8 +71,12 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   // 进度监听订阅
   StreamSubscription? _progressSubscription;
 
+  // Live Activity 服务
+  final LiveActivityService _liveActivityService = LiveActivityService();
+
   CompressionProgressCubit() : super(const CompressionProgressState()) {
     _listenToProgress();
+    _liveActivityService.init();
   }
 
   /// 监听原生进度事件
@@ -106,6 +112,9 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   @override
   Future<void> close() async {
     _progressSubscription?.cancel();
+
+    // 结束所有 Live Activity
+    await _liveActivityService.endAllActivities();
 
     // 清理未保存的临时压缩文件
     for (final video in state.videos) {
@@ -176,11 +185,96 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   void startCompression() {
     _logger.info('开始压缩任务');
 
+    // 启动 Live Activity
+    _startLiveActivity();
+
     // 调度所有需要下载的视频
     _scheduleDownloads();
 
     // 开始处理可压缩的视频
     _scheduleCompression();
+  }
+
+  /// 启动 Live Activity
+  void _startLiveActivity() {
+    final data = _buildLiveActivityData();
+    _liveActivityService.startActivity(data);
+  }
+
+  /// 更新 Live Activity
+  void _updateLiveActivity() {
+    if (!_liveActivityService.hasActiveActivity) return;
+
+    final data = _buildLiveActivityData();
+    _liveActivityService.updateActivity(data);
+  }
+
+  /// 构建 Live Activity 数据
+  LiveActivityData _buildLiveActivityData() {
+    if (state.videos.isEmpty) {
+      return const LiveActivityData(
+        progress: 0.0,
+        currentIndex: 0,
+        totalCount: 0,
+        status: 'compressing',
+      );
+    }
+
+    // 查找当前活跃的视频
+    final activeVideo = state.videos.firstWhere(
+      (v) =>
+          v.status == VideoCompressionStatus.compressing ||
+          v.status == VideoCompressionStatus.downloading,
+      orElse: () => state.videos.first,
+    );
+
+    // 计算当前索引
+    final currentIndex = state.videos.indexOf(activeVideo) + 1;
+
+    // 确定状态字符串
+    String status;
+    switch (activeVideo.status) {
+      case VideoCompressionStatus.downloading:
+      case VideoCompressionStatus.waitingDownload:
+        status = 'downloading';
+        break;
+      case VideoCompressionStatus.compressing:
+      case VideoCompressionStatus.waiting:
+        status = 'compressing';
+        break;
+      case VideoCompressionStatus.completed:
+      case VideoCompressionStatus.saved:
+        status = 'completed';
+        break;
+      case VideoCompressionStatus.cancelled:
+        status = 'cancelled';
+        break;
+      case VideoCompressionStatus.error:
+        status = 'compressing';
+        break;
+    }
+
+    return LiveActivityData(
+      progress: activeVideo.progress,
+      currentIndex: currentIndex,
+      totalCount: state.videos.length,
+      remainingSeconds: activeVideo.estimatedTimeRemaining,
+      currentVideoName: activeVideo.video.title,
+      status: status,
+    );
+  }
+
+  /// 检查并结束 Live Activity
+  void _checkAndEndLiveActivity() {
+    final allDone = state.videos.every((v) =>
+        v.status == VideoCompressionStatus.completed ||
+        v.status == VideoCompressionStatus.saved ||
+        v.status == VideoCompressionStatus.cancelled ||
+        v.status == VideoCompressionStatus.error);
+
+    if (allDone) {
+      _liveActivityService.endActivity();
+    }
   }
 
   /// 调度下载任务
@@ -317,6 +411,12 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     }).toList();
 
     emit(state.copyWith(videos: updatedVideos));
+
+    // 同步更新 Live Activity
+    _updateLiveActivity();
+
+    // 检查是否所有任务都已完成
+    _checkAndEndLiveActivity();
   }
 
   /// 调用原生方法获取视频文件路径
@@ -988,6 +1088,9 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     }).toList();
 
     emit(state.copyWith(videos: updatedVideos));
+
+    // 同步更新 Live Activity
+    _updateLiveActivity();
   }
 
   /// 更新视频会话 ID
@@ -1118,6 +1221,9 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
     }).toList();
 
     emit(state.copyWith(videos: updatedVideos));
+
+    // 结束 Live Activity
+    _liveActivityService.endActivity();
   }
 
   /// 批量保存压缩后视频到系统相册，并在全部保存完成后批量删除对应的原始视频
