@@ -16,10 +16,12 @@ class LiveActivityService {
   static const _appGroupId = 'group.cc.kekek.videoslimmer';
   static const _uuid = Uuid();
 
-  final LiveActivities _liveActivities = LiveActivities();
+  // 延迟初始化，避免在模拟器上创建时崩溃
+  LiveActivities? _liveActivities;
   String? _currentActivityId;
   String? _currentCustomId;
   bool _isInitialized = false;
+  bool _initFailed = false; // 标记初始化是否失败
 
   /// 上次更新的数据快照，用于节流
   int? _lastProgress;
@@ -28,24 +30,67 @@ class LiveActivityService {
 
   /// 初始化 Live Activity 服务
   Future<void> init() async {
-    if (!Platform.isIOS) return;
-    if (_isInitialized) return;
+    _logger.info('Live Activity init() 开始', {
+      'platform': Platform.operatingSystem,
+      'isIOS': Platform.isIOS,
+      'isInitialized': _isInitialized,
+    });
+
+    if (!Platform.isIOS) {
+      _logger.info('非 iOS 平台，跳过 Live Activity 初始化');
+      return;
+    }
+    if (_isInitialized) {
+      _logger.info('Live Activity 已初始化，跳过');
+      return;
+    }
+    if (_initFailed) {
+      _logger.info('Live Activity 之前初始化失败，跳过');
+      return;
+    }
 
     try {
-      await _liveActivities.init(appGroupId: _appGroupId);
+      // 延迟创建 LiveActivities 对象
+      _logger.info('正在创建 LiveActivities 对象...');
+      _liveActivities = LiveActivities();
+
+      _logger.info('正在调用 _liveActivities.init()', {
+        'appGroupId': _appGroupId,
+      });
+      await _liveActivities!.init(appGroupId: _appGroupId);
       _isInitialized = true;
-      _logger.info('Live Activity 服务初始化成功');
-    } catch (e) {
-      _logger.warning('Live Activity 初始化失败', {'error': e.toString()});
+      _logger.info('Live Activity 服务初始化成功 ✅');
+
+      // 检查是否支持
+      final isEnabled = await _liveActivities!.areActivitiesEnabled();
+      _logger.info('Live Activity 支持状态', {'isEnabled': isEnabled});
+    } catch (e, stackTrace) {
+      _initFailed = true;
+      _liveActivities = null;
+      _logger.warning('Live Activity 初始化失败 ❌', {
+        'error': e.toString(),
+        'stackTrace': stackTrace.toString(),
+      });
     }
   }
 
   /// 开始 Live Activity
   Future<void> startActivity(LiveActivityData data) async {
-    if (!await _isSupported()) return;
+    _logger.info('🚀 startActivity() 被调用', {
+      'data': data.toMap(),
+    });
+
+    final isSupported = await _isSupported();
+    _logger.info('Live Activity 支持检查结果', {'isSupported': isSupported});
+
+    if (!isSupported) {
+      _logger.warning('⚠️ Live Activity 不支持，跳过启动');
+      return;
+    }
 
     // 如果已有活动，先结束
     if (_currentActivityId != null) {
+      _logger.info('已有活动，先结束', {'oldActivityId': _currentActivityId});
       await endActivity();
     }
 
@@ -53,7 +98,12 @@ class LiveActivityService {
       // 生成唯一的 customId
       _currentCustomId = _uuid.v4();
 
-      _currentActivityId = await _liveActivities.createActivity(
+      _logger.info('正在调用 createActivity()', {
+        'customId': _currentCustomId,
+        'dataMap': data.toMap(),
+      });
+
+      _currentActivityId = await _liveActivities!.createActivity(
         _currentCustomId!,
         data.toMap(),
         removeWhenAppIsKilled: true,
@@ -64,13 +114,16 @@ class LiveActivityService {
       _lastRemainingSeconds = data.remainingSeconds;
       _lastStatus = data.status;
 
-      _logger.info('Live Activity 已启动', {
+      _logger.info('✅ Live Activity 已启动成功', {
         'activityId': _currentActivityId,
         'customId': _currentCustomId,
         'status': data.status,
       });
-    } catch (e) {
-      _logger.warning('启动 Live Activity 失败', {'error': e.toString()});
+    } catch (e, stackTrace) {
+      _logger.warning('❌ 启动 Live Activity 失败', {
+        'error': e.toString(),
+        'stackTrace': stackTrace.toString(),
+      });
       _currentCustomId = null;
     }
   }
@@ -89,8 +142,10 @@ class LiveActivityService {
       return;
     }
 
+    if (_liveActivities == null) return;
+
     try {
-      await _liveActivities.updateActivity(
+      await _liveActivities!.updateActivity(
         _currentActivityId!,
         data.toMap(),
       );
@@ -107,9 +162,10 @@ class LiveActivityService {
   /// 结束 Live Activity
   Future<void> endActivity() async {
     if (_currentActivityId == null) return;
+    if (_liveActivities == null) return;
 
     try {
-      await _liveActivities.endActivity(_currentActivityId!);
+      await _liveActivities!.endActivity(_currentActivityId!);
       _logger.info('Live Activity 已结束', {'activityId': _currentActivityId});
     } catch (e) {
       _logger.warning('结束 Live Activity 失败', {'error': e.toString()});
@@ -122,8 +178,10 @@ class LiveActivityService {
 
   /// 结束所有 Live Activity
   Future<void> endAllActivities() async {
+    if (_liveActivities == null) return;
+
     try {
-      await _liveActivities.endAllActivities();
+      await _liveActivities!.endAllActivities();
       _logger.info('所有 Live Activity 已结束');
     } catch (e) {
       _logger.warning('结束所有 Live Activity 失败', {'error': e.toString()});
@@ -136,11 +194,25 @@ class LiveActivityService {
 
   /// 检查是否支持 Live Activity
   Future<bool> _isSupported() async {
-    if (!Platform.isIOS) return false;
-    if (!_isInitialized) return false;
+    _logger.info('_isSupported() 检查中...', {
+      'isIOS': Platform.isIOS,
+      'isInitialized': _isInitialized,
+      'liveActivitiesNotNull': _liveActivities != null,
+    });
+
+    if (!Platform.isIOS) {
+      _logger.info('非 iOS 平台，不支持');
+      return false;
+    }
+    if (!_isInitialized || _liveActivities == null) {
+      _logger.warning('⚠️ Live Activity 服务未初始化！');
+      return false;
+    }
 
     try {
-      return await _liveActivities.areActivitiesEnabled();
+      final enabled = await _liveActivities!.areActivitiesEnabled();
+      _logger.info('areActivitiesEnabled() 返回', {'enabled': enabled});
+      return enabled;
     } catch (e) {
       _logger.warning('检查 Live Activity 支持状态失败', {'error': e.toString()});
       return false;

@@ -197,7 +197,9 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   /// 启动 Live Activity
   void _startLiveActivity() {
+    _logger.info('🎬 _startLiveActivity() 被调用');
     final data = _buildLiveActivityData();
+    _logger.info('Live Activity 数据已构建', {'data': data.toMap()});
     _liveActivityService.startActivity(data);
   }
 

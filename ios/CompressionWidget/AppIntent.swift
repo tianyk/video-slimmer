@@ -9,7 +9,8 @@ import ActivityKit
 import Foundation
 
 /// 压缩进度 Live Activity 属性
-struct CompressionActivityAttributes: ActivityAttributes {
+/// 注意：live_activities 插件默认寻找此名称
+struct LiveActivitiesAppAttributes: ActivityAttributes {
     
     /// 动态变化的内容状态（会实时更新）
     public struct ContentState: Codable, Hashable {
@@ -27,3 +28,6 @@ struct CompressionActivityAttributes: ActivityAttributes {
         var status: String
     }
 }
+
+// 为了代码可读性，保留别名
+typealias CompressionActivityAttributes = LiveActivitiesAppAttributes
