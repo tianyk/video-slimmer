@@ -277,10 +277,3 @@ struct LockScreenView: View {
     }
 }
 
-// MARK: - Widget Bundle
-@main
-struct CompressionWidgetBundle: WidgetBundle {
-    var body: some Widget {
-        CompressionLiveActivity()
-    }
-}
