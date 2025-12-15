@@ -12,6 +12,11 @@
 - [x] 创建 iOS Widget Extension 代码文件
   - [x] `CompressionWidget.swift` - 灵动岛 & 锁屏 UI
   - [x] `AppIntent.swift` - ActivityAttributes 定义
+- [x] 修复 `AppIntent.swift` 符合 `live_activities` 插件规范
+  - [x] 添加 `Identifiable` 协议
+  - [x] 添加 `typealias LiveDeliveryData = ContentState`
+  - [x] 添加 `var id = UUID()`
+  - [x] 添加 `prefixedKey` extension
 
 ### 📋 待完成（需在 Xcode 中手动操作）
 

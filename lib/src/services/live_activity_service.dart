@@ -12,6 +12,8 @@ final _logger = Logger.getLogger();
 ///
 /// 负责管理 iOS Live Activity 的生命周期，
 /// 在压缩任务进行时显示灵动岛/锁屏进度。
+///
+/// 参考：https://pub.dev/packages/live_activities
 class LiveActivityService {
   static const _appGroupId = 'group.cc.kekek.videoslimmer';
   static const _uuid = Uuid();
@@ -95,7 +97,7 @@ class LiveActivityService {
     }
 
     try {
-      // 生成唯一的 customId
+      // 生成唯一的 customId，用于标识此 Activity
       _currentCustomId = _uuid.v4();
 
       _logger.info('正在调用 createActivity()', {
@@ -103,6 +105,7 @@ class LiveActivityService {
         'dataMap': data.toMap(),
       });
 
+      // live_activities v2.x API: createActivity(String activityId, Map data, ...)
       _currentActivityId = await _liveActivities!.createActivity(
         _currentCustomId!,
         data.toMap(),
