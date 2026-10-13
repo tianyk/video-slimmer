@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -36,16 +38,20 @@ class _CompressionProgressScreenState extends State<CompressionProgressScreen> {
   void initState() {
     super.initState();
     _progressCubit = CompressionProgressCubit();
-    _progressCubit.initializeTask(
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_initializeTaskAndStart());
+    });
+  }
+
+  /// Initializes the queue before starting compression.
+  Future<void> _initializeTaskAndStart() async {
+    await _progressCubit.initializeTask(
       videos: widget.selectedVideos,
       config: widget.compressionConfig,
     );
-
-    // 自动开始压缩（在当前帧绘制完成后回调，确保界面已建立再触发业务逻辑）
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _logger.info('开始压缩任务');
-      _progressCubit.startCompression();
-    });
+    if (!mounted || _progressCubit.isClosed) return;
+    _logger.info('开始压缩任务');
+    await _progressCubit.startCompression();
   }
 
   @override

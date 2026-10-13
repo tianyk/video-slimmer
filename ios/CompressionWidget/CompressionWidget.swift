@@ -9,6 +9,36 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
+private let sharedDefaults = UserDefaults(
+    suiteName: "group.cc.kekek.videoslimmer"
+)!
+
+/// Snapshot of values written by the live_activities Flutter plugin.
+struct CompressionActivityData {
+    let progress: Double
+    let currentIndex: Int
+    let totalCount: Int
+    let remainingSeconds: Int?
+    let currentVideoName: String?
+    let status: String
+
+    init(attributes: CompressionActivityAttributes) {
+        let progressKey = attributes.prefixedKey("progress")
+        let currentIndexKey = attributes.prefixedKey("currentIndex")
+        let totalCountKey = attributes.prefixedKey("totalCount")
+        let remainingSecondsKey = attributes.prefixedKey("remainingSeconds")
+        let currentVideoNameKey = attributes.prefixedKey("currentVideoName")
+        let statusKey = attributes.prefixedKey("status")
+
+        progress = min(max(sharedDefaults.double(forKey: progressKey), 0), 1)
+        currentIndex = sharedDefaults.integer(forKey: currentIndexKey)
+        totalCount = sharedDefaults.integer(forKey: totalCountKey)
+        remainingSeconds = sharedDefaults.object(forKey: remainingSecondsKey) as? Int
+        currentVideoName = sharedDefaults.string(forKey: currentVideoNameKey)
+        status = sharedDefaults.string(forKey: statusKey) ?? "compressing"
+    }
+}
+
 // MARK: - 品牌颜色扩展
 extension Color {
     static let prosperityGold = Color(red: 184/255, green: 155/255, blue: 110/255)
@@ -48,14 +78,17 @@ struct CompressionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: CompressionActivityAttributes.self) { context in
             // 锁屏视图
-            LockScreenView(state: context.state)
+            LockScreenView(
+                data: CompressionActivityData(attributes: context.attributes)
+            )
         } dynamicIsland: { context in
-            DynamicIsland {
+            let data = CompressionActivityData(attributes: context.attributes)
+            return DynamicIsland {
                 // Expanded - Leading
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(systemName: iconName(for: context.state.status))
+                    Image(systemName: iconName(for: data.status))
                         .font(.system(size: 28))
-                        .foregroundColor(iconColor(for: context.state.status))
+                        .foregroundColor(iconColor(for: data.status))
                         .frame(width: 44, height: 44)
                         .background(Color.prosperityGray)
                         .cornerRadius(10)
@@ -67,7 +100,7 @@ struct CompressionLiveActivity: Widget {
                         Text("Video Slimmer")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.prosperityGold)
-                        Text(statusText(for: context.state.status))
+                        Text(statusText(for: data.status))
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
                     }
@@ -75,7 +108,7 @@ struct CompressionLiveActivity: Widget {
                 
                 // Expanded - Trailing
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text("\(context.state.currentIndex)/\(context.state.totalCount)")
+                    Text("\(data.currentIndex)/\(data.totalCount)")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.white)
                 }
@@ -83,12 +116,12 @@ struct CompressionLiveActivity: Widget {
                 // Expanded - Bottom
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 12) {
-                        ProgressView(value: context.state.progress)
+                        ProgressView(value: data.progress)
                             .progressViewStyle(GoldProgressStyle())
                         
                         HStack {
                             Label(
-                                context.state.currentVideoName ?? "处理中",
+                                data.currentVideoName ?? "处理中",
                                 systemImage: "film"
                             )
                             .font(.system(size: 12))
@@ -97,7 +130,7 @@ struct CompressionLiveActivity: Widget {
                             
                             Spacer()
                             
-                            if let remaining = context.state.remainingSeconds, remaining > 0 {
+                            if let remaining = data.remainingSeconds, remaining > 0 {
                                 Label(formatTime(remaining), systemImage: "clock")
                                     .font(.system(size: 12))
                                     .foregroundColor(.prosperityDarkGold)
@@ -109,17 +142,17 @@ struct CompressionLiveActivity: Widget {
                 
             } compactLeading: {
                 // Compact Leading
-                Image(systemName: iconName(for: context.state.status))
-                    .foregroundColor(iconColor(for: context.state.status))
+                Image(systemName: iconName(for: data.status))
+                    .foregroundColor(iconColor(for: data.status))
                     .font(.system(size: 14, weight: .semibold))
                     
             } compactTrailing: {
                 // Compact Trailing
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(Int(context.state.progress * 100))%")
+                    Text("\(Int(data.progress * 100))%")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.white)
-                    Text("\(context.state.currentIndex)/\(context.state.totalCount)")
+                    Text("\(data.currentIndex)/\(data.totalCount)")
                         .font(.system(size: 10))
                         .foregroundColor(.prosperityDarkGold)
                 }
@@ -131,7 +164,7 @@ struct CompressionLiveActivity: Widget {
                         .stroke(Color.gray.opacity(0.3), lineWidth: 2)
                         .frame(width: 22, height: 22)
                     Circle()
-                        .trim(from: 0, to: context.state.progress)
+                        .trim(from: 0, to: data.progress)
                         .stroke(Color.prosperityGold, lineWidth: 2)
                         .frame(width: 22, height: 22)
                         .rotationEffect(.degrees(-90))
@@ -188,15 +221,15 @@ struct CompressionLiveActivity: Widget {
 
 // MARK: - 锁屏视图
 struct LockScreenView: View {
-    let state: CompressionActivityAttributes.ContentState
+    let data: CompressionActivityData
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // 头部
             HStack(spacing: 12) {
-                Image(systemName: iconName(for: state.status))
+                Image(systemName: iconName(for: data.status))
                     .font(.system(size: 24))
-                    .foregroundColor(iconColor(for: state.status))
+                    .foregroundColor(iconColor(for: data.status))
                     .frame(width: 40, height: 40)
                     .background(Color.prosperityGray)
                     .cornerRadius(8)
@@ -205,26 +238,26 @@ struct LockScreenView: View {
                     Text("Video Slimmer")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.prosperityGold)
-                    Text("正在压缩 \(state.currentIndex)/\(state.totalCount) 个视频")
+                    Text("正在压缩 \(data.currentIndex)/\(data.totalCount) 个视频")
                         .font(.system(size: 13))
                         .foregroundColor(.gray)
                 }
                 
                 Spacer()
                 
-                Text("\(Int(state.progress * 100))%")
+                Text("\(Int(data.progress * 100))%")
                     .font(.system(size: 24, weight: .bold))
                     .foregroundColor(.white)
             }
             
             // 进度条
-            ProgressView(value: state.progress)
+            ProgressView(value: data.progress)
                 .progressViewStyle(GoldProgressStyle())
             
             // 底部信息
             HStack {
                 Label(
-                    state.currentVideoName ?? "处理中",
+                    data.currentVideoName ?? "处理中",
                     systemImage: "film"
                 )
                 .font(.system(size: 12))
@@ -233,7 +266,7 @@ struct LockScreenView: View {
                 
                 Spacer()
                 
-                if let remaining = state.remainingSeconds, remaining > 0 {
+                if let remaining = data.remainingSeconds, remaining > 0 {
                     Label(formatTime(remaining), systemImage: "clock")
                         .font(.system(size: 12))
                         .foregroundColor(.prosperityDarkGold)
@@ -276,4 +309,3 @@ struct LockScreenView: View {
         }
     }
 }
-

@@ -44,7 +44,7 @@ class AppTheme {
         fontWeight: FontWeight.bold,
       ),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: prosperityGray,
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -101,7 +101,7 @@ class AppTheme {
       centerTitle: true, // 居中对齐，视觉平衡
     ),
     /// 卡片组件样式 - 与亮色主题相同，保持一致性
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: prosperityGray,
       elevation: 4, // 轻微阴影，提升层次感
       shape: RoundedRectangleBorder(

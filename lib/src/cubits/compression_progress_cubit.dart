@@ -76,7 +76,6 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
 
   CompressionProgressCubit() : super(const CompressionProgressState()) {
     _listenToProgress();
-    _liveActivityService.init();
   }
 
   /// 监听原生进度事件
@@ -168,6 +167,8 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
       );
     }).toList());
 
+    if (isClosed) return;
+
     // 将需要压缩和下载的视频 ID 添加到队列中
     _videoIdsToCompress.addAll(videoInfos
         .where((info) => info.status == VideoCompressionStatus.waiting)
@@ -182,25 +183,31 @@ class CompressionProgressCubit extends Cubit<CompressionProgressState> {
   }
 
   /// 开始压缩任务
-  void startCompression() {
+  Future<void> startCompression() async {
     _logger.info('开始压缩任务');
 
-    // 启动 Live Activity
-    _startLiveActivity();
+    // Live Activity 初始化必须先完成，避免启动时因竞态被静默跳过。
+    await _liveActivityService.init();
+    if (isClosed) return;
+    await _startLiveActivity();
+    if (isClosed) {
+      await _liveActivityService.endAllActivities();
+      return;
+    }
 
     // 调度所有需要下载的视频
-    _scheduleDownloads();
+    unawaited(_scheduleDownloads());
 
     // 开始处理可压缩的视频
-    _scheduleCompression();
+    unawaited(_scheduleCompression());
   }
 
   /// 启动 Live Activity
-  void _startLiveActivity() {
+  Future<void> _startLiveActivity() async {
     _logger.info('🎬 _startLiveActivity() 被调用');
     final data = _buildLiveActivityData();
     _logger.info('Live Activity 数据已构建', {'data': data.toMap()});
-    _liveActivityService.startActivity(data);
+    await _liveActivityService.startActivity(data);
   }
 
   /// 更新 Live Activity

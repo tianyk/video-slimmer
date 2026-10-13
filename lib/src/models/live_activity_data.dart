@@ -29,13 +29,19 @@ class LiveActivityData {
     required this.status,
   });
 
-  /// 转换为 Map，用于传递给原生端
-  Map<String, dynamic> toMap() => {
+  /// Converts the data for the native live activity plugin.
+  ///
+  /// Activity creation must omit null values because UserDefaults cannot store
+  /// NSNull. Updates may include null values so the plugin removes stale keys.
+  Map<String, dynamic> toMap({bool includeNullValues = false}) =>
+      <String, dynamic>{
         'progress': progress,
         'currentIndex': currentIndex,
         'totalCount': totalCount,
-        'remainingSeconds': remainingSeconds,
-        'currentVideoName': currentVideoName,
+        if (includeNullValues || remainingSeconds != null)
+          'remainingSeconds': remainingSeconds,
+        if (includeNullValues || currentVideoName != null)
+          'currentVideoName': currentVideoName,
         'status': status,
       };
 }

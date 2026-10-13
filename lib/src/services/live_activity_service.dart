@@ -150,7 +150,7 @@ class LiveActivityService {
     try {
       await _liveActivities!.updateActivity(
         _currentActivityId!,
-        data.toMap(),
+        data.toMap(includeNullValues: true),
       );
 
       // 更新快照
