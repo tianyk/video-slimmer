@@ -1,242 +1,63 @@
-# iOS 开发环境故障排查指南
+# 开发环境故障排查
 
-## 核心问题概览
+先保留报错、命令和版本，再按症状检查。本文是排查步骤，不能据此判断当前环境已经验证通过。
 
-- iOS 相册权限不弹窗
-- 权限插件未注册 (MissingPluginException)
-- Apple Silicon 首次执行阻塞
-- VM Service 连接异常
+## 先检查环境
 
----
-
-## 问题 1: iOS 相册权限不弹窗 ✅
-
-### 症状
-```log
-📋 尝试请求相册权限...
-📋 相册权限状态: PermissionStatus.permanentlyDenied
-```
-- 启动 App 后，iOS 系统**没有弹出相册权限请求**  
-- 在**设置 → 隐私与安全性 → 照片**中也看不到当前 App  
-
-### 确认原因
-- `permission_handler >= 11.x` 不再使用 `pod 'Permission-XXX'` 引入子模块  
-- 必须在 `Podfile` 中配置 **GCC_PREPROCESSOR_DEFINITIONS 宏**，明确启用/禁用权限  
-- 如果未启用权限宏，则 `request()` 永远返回 `permanentlyDenied`
-
-### 解决方案
-
-#### 1. 修改 `ios/Podfile` 的 `post_install` 配置
-
-仅启用相册读取/写入，关闭其他权限：
-
-```ruby
-post_install do |installer|
-  installer.pods_project.targets.each do |target|
-    flutter_additional_ios_build_settings(target)
-    target.build_configurations.each do |config|
-      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
-        '$(inherited)',
-
-        ## ✅ 启用相册
-        'PERMISSION_PHOTOS=1',
-        'PERMISSION_PHOTOS_ADD_ONLY=1',
-
-        ## ❌ 禁用不需要的权限
-        'PERMISSION_CAMERA=0',
-        'PERMISSION_MICROPHONE=0',
-        'PERMISSION_LOCATION=0',
-        'PERMISSION_LOCATION_WHENINUSE=0',
-        'PERMISSION_CONTACTS=0',
-        'PERMISSION_NOTIFICATIONS=0',
-        'PERMISSION_MEDIA_LIBRARY=0',
-        'PERMISSION_SENSORS=0',
-        'PERMISSION_BLUETOOTH=0',
-        'PERMISSION_APP_TRACKING_TRANSPARENCY=0',
-        'PERMISSION_CRITICAL_ALERTS=0',
-        'PERMISSION_ASSISTANT=0',
-        'PERMISSION_EVENTS=0',
-        'PERMISSION_EVENTS_FULL_ACCESS=0',
-        'PERMISSION_REMINDERS=0',
-        'PERMISSION_SPEECH_RECOGNIZER=0',
-      ]
-    end
-  end
-end
-```
-
-#### 2. 确认 `ios/Runner/Info.plist` 中已添加描述
-
-```xml
-<key>NSPhotoLibraryUsageDescription</key>
-<string>视频瘦身器需要访问相册以选择和处理视频文件</string>
-
-<key>NSPhotoLibraryAddUsageDescription</key>
-<string>视频瘦身器需要将压缩后的视频保存到相册</string>
-```
-
-#### 3. 清理并重建环境
+在仓库根目录执行：
 
 ```bash
-cd ios
-pod deintegrate
-rm -rf Pods Podfile.lock
-pod install
-cd ..
-flutter clean
-flutter pub get
-flutter run
+flutter --version
+flutter doctor -v
+flutter devices
+git status --short
 ```
 
-### 验证结果
-- ✅ 首次运行 APP 会弹出「允许访问照片」对话框  
-- ✅ `Permission.photos.request()` 返回正确状态 (granted / limited 等)  
-- ✅ 系统设置可正确显示/切换相册权限  
+缺少依赖或修改了 `pubspec.yaml` 时执行 `flutter pub get`。iOS 依赖安装需要先完成 Flutter 依赖初始化，再在 `ios/` 执行 `pod install`；打开 Xcode 时使用 `ios/Runner.xcworkspace`。
 
----
+## 相册权限不弹窗或一直被拒绝
 
-## 问题 2: 权限插件未注册 (MissingPluginException) ✅
+1. 检查 `ios/Runner/Info.plist` 的 `NSPhotoLibraryUsageDescription` 与 `NSPhotoLibraryAddUsageDescription`。
+2. 检查 `ios/Podfile` 的 `PERMISSION_PHOTOS=1` 和 `PERMISSION_PHOTOS_ADD_ONLY=1`，不要添加已不适用的 `pod 'Permission-XXX'`。
+3. 区分首次请求、limited、拒绝和 permanentlyDenied；已经拒绝后可能需要在系统设置授权，不能期待每次运行都再次弹窗。
+4. 修改原生配置后完整重建 / 重启应用，热重载不能重新注册插件或变更原生权限宏。
+5. 使用测试设备或专用相册验证读取、写入与删除，避免为排障删除真实用户素材。
 
-### 症状
-```
-flutter: snapshot.error: MissingPluginException(No implementation found for method requestPermissions on channel flutter.baseflow.com/permissions/methods)
-```
+## MissingPluginException
 
-### 确认原因
-- `pubspec.yaml` 中包含 `module` 配置导致 Flutter 将项目视为模块而非完整应用
-- 插件注册文件 `ios/Runner/GeneratedPluginRegistrant.m` 为空
-- Flutter 没有生成正确的插件注册代码
+检查是否完整重启应用、运行平台是否支持插件，以及 `pubspec.yaml` 是否被误配置为 Flutter module。插件注册文件由 Flutter 生成，不手动补注册代码。
 
-### 解决方案
+先执行 `flutter pub get`，需要时在 `ios/` 执行 `pod install` 并重新构建。若仍失败，再根据日志决定是否需要 `flutter clean`；不要默认卸载 Pods 或删除锁文件。
 
-#### 1. 移除 pubspec.yaml 中的 module 配置
+## Live Activity 不出现或进度不更新
 
-```yaml
-# 删除这部分配置
-flutter:
-  uses-material-design: true
-  # module:                    ← 删除
-  #   iosBundleIdentifier: ... ← 删除
-```
-
-#### 2. 完全清理并重新生成
+1. 检查 `ios/Runner/Info.plist` 的 `NSSupportsLiveActivities`、系统是否允许实时活动，以及服务初始化日志。
+2. 对照 `LiveActivityService`、Widget UserDefaults 和 entitlements 的 App Group，必须都是 `group.cc.kekek.videoslimmer`；在账户和签名环境确认 capability。
+3. `ios/CompressionWidget/AppIntent.swift` 的 `LiveActivitiesAppAttributes` / `ContentState` 必须匹配当前锁定的 `live_activities` 原生实现；历史方案中的结构不能直接替换现有代码。
+4. 创建时不能向 UserDefaults 写 null；更新时允许传 null 以移除旧值。可运行现有模型测试：
 
 ```bash
-# 清理 Flutter 缓存
-flutter clean
-
-# 清理 iOS 依赖
-cd ios
-rm -rf Pods Podfile.lock
-cd ..
-
-# 重新获取依赖并生成插件注册
-flutter pub get
-
-# 重新安装 iOS Pods
-cd ios && pod install && cd ..
+flutter test --no-pub test/models/live_activity_data_test.dart
 ```
 
-#### 3. 验证插件注册文件
+5. 检查 Widget Extension 是否参与构建与嵌入，再在支持的设备验证启动、更新与结束。项目 Deployment Target 为 iOS 17.0；插件 / 系统 API 的最低版本不等于本应用支持范围。
 
-检查 `ios/Runner/GeneratedPluginRegistrant.m` 应包含:
+## 内购商品不可用
 
-```objc
-+ (void)registerWithRegistry:(NSObject<FlutterPluginRegistry>*)registry {
-  [PermissionHandlerPlugin registerWithRegistrar:[registry registrarForPlugin:@"PermissionHandlerPlugin"]];
-  [PhotoManagerPlugin registerWithRegistrar:[registry registrarForPlugin:@"PhotoManagerPlugin"]];
-  // ... 其他插件
-}
-```
+核对 `AppConstants.proProductId` 与 `ios/Runner/StoreKitConfig.storekit`，均应为 `cc.kekek.videoslimmer.pro`。本地测试确认 Runner Scheme 已选择 StoreKit Configuration；沙盒测试还需要 App Store Connect 商品和测试账户配置。
 
-### 验证结果
-- ✅ 权限插件正确注册
-- ✅ 应用启动不再报 MissingPluginException 错误
-- ✅ 权限请求功能正常工作
+区分本地 StoreKit 与真实商店环境，不把本地购买通过当作上线验收。具体故障模拟和恢复购买流程见 [内购方案](docs/TECH_SPEC_IAP.md)。
 
----
+## Flutter CLI 阻塞或 VM Service 连接异常
 
-## 问题 3: Apple Silicon 首次执行阻塞 🚫
+- 保存 `flutter doctor -v` 与 `flutter run -v -d <device-id>` 的日志，确认 Xcode、设备连接、网络代理和调试端口状态。
+- VM Service 端口冲突时可尝试 `flutter run --host-vmservice-port 8080 -d <device-id>`。
+- 只重启目标测试设备或当前调试任务，避免默认关闭所有模拟器。
+- Release 模式不提供正常热重载，不能把切换 Release 当作修复调试连接的结论。
+- CLI 持续异常时可用 Xcode 辅助定位原生报错，但不要未经验证归因于 Apple Silicon 的已知缺陷。
 
-### 症状
-- `flutter` 命令首次启动阻塞 10 分钟以上
-- 仅显示 `Unable to locate Android SDK.` 无其他输出
+## 清理与验证
 
-### 确认原因
-- ✅ Rosetta 2 已安装且启用
-- ✅ `arch -arm64` 绕过无效
-- ✅ 所有 Flutter 版本均已更新
-- ⚠️ **确认为 Flutter 在 M 系列 Mac 上的已知间歇性问题**
+只有缓存 / 生成产物确实导致问题时才考虑 `flutter clean`，随后重新 `flutter pub get` 并构建。`pod deintegrate` 或移除 Pods 应在普通安装无法解决且目标明确时单独处理，不删除 `pubspec.lock` 或顺带升级依赖。
 
-### 当前状态
-- 暂无可靠解决方案，需等待 Flutter 官方修复  
-- **临时替代**: 使用 Android Studio IDE 运行可绕过 CLI 阻塞  
-
----
-
-## 问题 4: VM Service 连接异常 ⚠️
-
-### 症状
-```
-vm-service: Error: Unhandled exception:
-WebSocketException: Invalid WebSocket upgrade request
-[ERROR:flutter/runtime/dart_isolate.cc(1380)] Unhandled exception:
-WebSocketException: Invalid WebSocket upgrade request
-Connecting to the VM Service is taking longer than expected...
-Still attempting to connect to the VM Service...
-```
-
-### 确认原因
-- Flutter 调试器与 iOS 模拟器/设备的 VM Service 连接异常
-- WebSocket 升级请求格式不正确
-- 可能与网络配置或防火墙设置相关
-
-### 临时解决方案
-
-#### 方法 1: 使用指定端口运行
-```bash
-flutter run --host-vmservice-port 8080
-```
-
-#### 方法 2: 重启模拟器和 Flutter
-```bash
-# 关闭模拟器
-xcrun simctl shutdown all
-
-# 重启模拟器
-open -a Simulator
-
-# 重新运行
-flutter run
-```
-
-#### 方法 3: 使用 Release 模式
-```bash
-flutter run --release
-```
-
-### 当前状态
-- 应用可以正常构建和运行，但调试连接不稳定  
-- **影响**: 不影响应用功能，仅影响热重载和调试体验  
-
----
-
-## 完整验证流程
-
-```bash
-# 完整清理
-flutter clean
-cd ios && pod deintegrate && rm -rf Pods Podfile.lock && cd ..
-
-# 重新构建
-flutter pub get
-cd ios && pod install && cd ..
-
-# 运行应用
-flutter run
-
-# 如遇 CLI 阻塞，使用 Android Studio 或 Xcode 运行
-open ios/Runner.xcworkspace
-```
-
----
+通用验证方式见 [verification.md](docs/guide/verification.md)。报告实际执行命令、结果和剩余设备验收项，不把历史解决记录视为当前环境的证明。

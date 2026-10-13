@@ -2,6 +2,8 @@
 
 > 本文档描述 Video Slimmer Pro 版功能的技术实现方案
 
+> 当前实现校准（2026-10-13）：购买、恢复、免费阈值和升级弹层代码已存在，使用 `PurchaseService` 的事件流驱动 `PurchaseCubit`，下文回调式示例为历史设计。依赖约束以 `pubspec.yaml` 为准，实际版本以 `pubspec.lock` 为准。商品 ID 统一为 `cc.kekek.videoslimmer.pro`；本地 StoreKit 文件与 Scheme 已配置，外部商品配置和设备验收见 [TODO.md](../TODO.md)。当前未实现服务端收据验证，不能将本地缓存视为已完成验证。
+
 ## 1. 功能概述
 
 ### 1.1 业务需求
@@ -46,8 +48,8 @@ lib/src/
 ```yaml
 # pubspec.yaml
 dependencies:
-  in_app_purchase: ^3.1.13          # Apple IAP 官方插件
-  shared_preferences: ^2.2.2        # 本地存储购买状态缓存
+  in_app_purchase: ^3.2.0          # Apple IAP 官方插件
+  shared_preferences: ^2.3.2        # 本地存储购买状态缓存
 ```
 
 **备选方案（RevenueCat）：**
@@ -222,7 +224,7 @@ BlocProvider<PurchaseCubit>(create: (_) => PurchaseCubit()),
 4. 选择类型：**非消耗型**
 5. 填写信息：
    - 参考名称：`Video Slimmer Pro`
-   - 产品 ID：`com.yourcompany.videoslimmer.pro`
+   - 产品 ID：`cc.kekek.videoslimmer.pro`
    - 价格：选择价格等级（如 Tier 1 = ¥6，Tier 3 = ¥18）
    - 显示名称：`Pro 版本`
    - 描述：`解锁无限批量压缩功能`
@@ -251,7 +253,7 @@ Xcode 提供了 StoreKit Configuration File（`.storekit`），允许在**本地
 | 配置项 | 值 | 说明 |
 |:---|:---|:---|
 | **Reference Name** | Video Slimmer Pro | 产品参考名称 |
-| **Product ID** | `video_slimmer_pro` | 需与代码中 `AppConstants.proProductId` 一致 |
+| **Product ID** | `cc.kekek.videoslimmer.pro` | 需与代码中 `AppConstants.proProductId` 一致 |
 | **Type** | Non-Consumable | 非消耗型（一次性买断） |
 | **Price** | 18.00 | 测试价格（人民币） |
 
@@ -370,6 +372,8 @@ StoreKit 配置修改**大部分实时生效**，无需重启应用：
 ---
 
 ## 9. 测试清单
+
+以下为待执行的验收项，历史表格中的 ✅ 表示检查内容，不代表本次已经通过。
 
 | 测试项 | 说明 |
 |:---|:---|

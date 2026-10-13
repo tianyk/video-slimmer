@@ -1,5 +1,7 @@
 # 视频压缩技术方案
 
+> 当前实现校准（2026-10-13）：本文保留早期架构说明；实际 FFmpeg 参数、元数据与调度细节以 `lib/src/cubits/compression_progress_cubit.dart` 为准。`cancelAllCompression()` 清空队列后循环继续等待重试，只有 `close()` 才关闭调度生命周期。Live Activity 已集成，待设备验收见 [TODO.md](../TODO.md)。
+
 | 文档版本 | V1.1 |
 |---------|------|
 | 创建日期 | 2025-12-11 |
@@ -288,7 +290,7 @@ while (!isClosed) {
 > 方法：`cancelAllCompression()`
 
 1. 遍历所有 `compressing` 状态的视频，按 `sessionId` 取消 FFmpeg
-2. 清空两个队列（触发循环捕获 `StateError` 并退出）
+2. 清空两个队列（触发循环捕获 `StateError` 后继续等待，供后续重试入队）
 3. 将所有活跃状态更新为 `cancelled`
 
 ### 8.3 重试视频
@@ -364,7 +366,7 @@ while(!isClosed) 条件为 false → 循环退出 ✅
 |-------|------|-------|
 | 预检查机制 | 压缩前检查存储空间、视频完整性 | P2 |
 | 压缩质量验证 | 压缩完成后验证输出文件 | P2 |
-| 灵动岛支持 | 后台压缩时在灵动岛显示进度 | P2 |
+| 灵动岛验收 | 已集成实时活动，待设备验证启动、进度更新与结束；后台执行能力单独验证 | P2 |
 
 ---
 

@@ -1,6 +1,7 @@
 # Miscellaneous
 *.class
 *.lock
+!pubspec.lock
 *.log
 *.pyc
 *.swp
@@ -12,6 +13,9 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+
+# Local AI tool state; shared rules, commands and memory stay tracked
+.claude/settings.local.json
 
 # IntelliJ related
 *.iml

@@ -1,10 +1,14 @@
 # 灵动岛进度显示技术方案
 
+> 当前实现校准（2026-10-13）：Flutter 服务、Cubit 集成、Widget Extension、App Group entitlements 均已存在，外部签名配置与设备验收见 [TODO.md](../TODO.md)。项目最低部署版本为 **iOS 17.0**，不能用 ActivityKit 的 16.1 门槛推断应用支持范围。
+>
+> 下文代码块保留早期设计，不能直接作为当前插件 API 使用：实际 `createActivity` 接收自定义 ID 和数据 Map；Widget 使用 `LiveActivitiesAppAttributes`，其 `ContentState` 当前只有 `appGroupId`，业务字段从带 UUID 前缀的共享 UserDefaults 读取。创建数据省略 null，更新通过 `toMap(includeNullValues: true)` 清除旧值。修改前读取 `live_activity_service.dart`、`live_activity_data.dart` 与 `ios/CompressionWidget/AppIntent.swift`，并核对锁定插件的原生定义。实时活动展示不保证 iOS 长期后台执行。
+
 | 文档版本 | V1.2 |
 |---------|------|
 | 创建日期 | 2025-12-12 |
 | 更新日期 | 2025-12-12 |
-| 文档状态 | Flutter 端已实现，iOS Widget Extension 需在 Xcode 中配置 |
+| 文档状态 | Flutter 与 Widget Extension 已实现，签名配置及设备行为待验收 |
 | 参考规范 | [Apple HIG - 实时活动](https://developer.apple.com/cn/design/human-interface-guidelines/live-activities) |
 
 ## 1. 概述
@@ -46,7 +50,7 @@
 
 | 要求 | 说明 |
 |------|------|
-| 最低 iOS 版本 | iOS 16.1+ |
+| 本项目最低 iOS 版本 | iOS 17.0（ActivityKit API 自身最低为 16.1） |
 | 灵动岛支持设备 | iPhone 14 Pro、iPhone 14 Pro Max、iPhone 15 系列及更新机型 |
 | 锁屏活动 | 所有 iOS 16.1+ 设备支持（包括无灵动岛设备） |
 | 最长持续时间 | 8 小时（系统限制，超时自动结束） |
@@ -1101,4 +1105,3 @@ lib/
 ---
 
 **文档结束**
-
